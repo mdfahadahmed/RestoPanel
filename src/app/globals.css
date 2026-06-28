@@ -1,0 +1,179 @@
+@import "tailwindcss";
+
+/* ------------------------------------------------------------------ */
+/*  RestoPanel design tokens (Tailwind v4 @theme)                      */
+/*  Black, premium, luxury SaaS aesthetic with gold/violet accents.   */
+/* ------------------------------------------------------------------ */
+@theme {
+  --color-ink-950: #050506;
+  --color-ink-900: #0a0a0c;
+  --color-ink-850: #0e0e12;
+  --color-ink-800: #14141a;
+  --color-ink-700: #1c1c24;
+  --color-ink-600: #2a2a35;
+
+  --color-line: #23232c;
+
+  --color-fog-100: #f5f5f7;
+  --color-fog-300: #c7c7cf;
+  --color-fog-400: #9a9aa6;
+  --color-fog-500: #6f6f7b;
+
+  --color-gold-300: #f6d97a;
+  --color-gold-400: #e8c25a;
+  --color-gold-500: #d4a73c;
+
+  --color-violet-400: #a78bfa;
+  --color-violet-500: #8b5cf6;
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, sans-serif;
+
+  --radius-xl2: 1.25rem;
+
+  --shadow-glow: 0 0 0 1px rgba(255, 255, 255, 0.04),
+    0 20px 60px -20px rgba(139, 92, 246, 0.25);
+  --shadow-soft: 0 10px 40px -12px rgba(0, 0, 0, 0.6);
+
+  --animate-marquee: marquee 32s linear infinite;
+  --animate-float: float 7s ease-in-out infinite;
+  --animate-shimmer: shimmer 2.5s linear infinite;
+}
+
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-14px); }
+}
+
+@keyframes shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Base                                                               */
+/* ------------------------------------------------------------------ */
+:root {
+  color-scheme: dark;
+}
+
+* {
+  border-color: var(--color-line);
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  background: var(--color-ink-950);
+  color: var(--color-fog-100);
+  font-family: var(--font-sans);
+  overflow-x: hidden;
+}
+
+/* Ambient gradient mesh used behind hero / sections */
+.bg-mesh {
+  background-image:
+    radial-gradient(60% 50% at 20% 0%, rgba(139, 92, 246, 0.16), transparent 60%),
+    radial-gradient(50% 50% at 90% 10%, rgba(212, 167, 60, 0.12), transparent 60%),
+    radial-gradient(40% 40% at 50% 100%, rgba(139, 92, 246, 0.08), transparent 60%);
+}
+
+.bg-grid {
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 56px 56px;
+  -webkit-mask-image: radial-gradient(70% 60% at 50% 0%, #000 30%, transparent 75%);
+  mask-image: radial-gradient(70% 60% at 50% 0%, #000 30%, transparent 75%);
+}
+
+/* Glassmorphism surface */
+.glass {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.05),
+    rgba(255, 255, 255, 0.02)
+  );
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Storefront form input */
+.store-input {
+  width: 100%;
+  border-radius: 0.75rem;
+  border: 1px solid var(--color-line);
+  background: var(--color-ink-900);
+  padding: 0.625rem 0.75rem;
+  font-size: 0.875rem;
+  color: var(--color-fog-100);
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+.store-input::placeholder {
+  color: var(--color-fog-600);
+}
+.store-input:focus {
+  border-color: var(--color-fog-600);
+}
+
+/* Gradient text accent */
+.text-gradient {
+  background: linear-gradient(120deg, #fff 0%, var(--color-fog-300) 40%, var(--color-violet-400) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.text-gradient-gold {
+  background: linear-gradient(100deg, var(--color-gold-300), var(--color-gold-500));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Animated gradient border button */
+.btn-glow {
+  position: relative;
+  isolation: isolate;
+}
+.btn-glow::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(120deg, var(--color-violet-500), var(--color-gold-400));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0.8;
+  z-index: -1;
+}
+
+/* Thin custom scrollbar */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: var(--color-ink-900); }
+::-webkit-scrollbar-thumb {
+  background: var(--color-ink-600);
+  border-radius: 999px;
+  border: 2px solid var(--color-ink-900);
+}
+::-webkit-scrollbar-thumb:hover { background: var(--color-ink-700); }
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

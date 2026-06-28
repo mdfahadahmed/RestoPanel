@@ -1,0 +1,434 @@
+// RestoPanel — multi-tenant schema.
+// Tenancy model: a single shared database where every tenant-owned row carries
+// a `restaurantId`. All application queries MUST be scoped by the authenticated
+// user's restaurantId so one restaurant can never read another's data.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL") // pooled (PgBouncer) endpoint for the app
+  directUrl = env("DIRECT_URL")   // direct endpoint for migrations
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+enum Role {
+  OWNER
+  MANAGER
+  STAFF
+}
+
+enum OrderType {
+  DELIVERY
+  PICKUP
+  DINE_IN
+}
+
+enum ReservationStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PREPARING
+  READY
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+  REJECTED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  ONLINE
+}
+
+enum PaymentStatus {
+  UNPAID
+  PAID
+  REFUNDED
+}
+
+enum CustomerStatus {
+  ACTIVE
+  INACTIVE
+  BLOCKED
+}
+
+enum CouponType {
+  PERCENTAGE
+  FIXED
+}
+
+enum StockStatus {
+  IN_STOCK
+  LOW_STOCK
+  OUT_OF_STOCK
+}
+
+enum ProductStatus {
+  ACTIVE
+  DRAFT
+  ARCHIVED
+}
+
+// ---------------------------------------------------------------------------
+// Tenant root
+// ---------------------------------------------------------------------------
+model Restaurant {
+  id        String   @id @default(cuid())
+  slug      String   @unique // used for the customer site URL: /r/<slug>
+  name      String
+  ownerName String
+
+  // Contact / settings
+  email          String?
+  phone          String?
+  whatsapp       String?
+  website        String?
+  logoUrl        String?
+  logoKey        String?
+  coverImageUrl  String?
+  coverKey       String?
+  address        String? // composed single-line address (kept for the storefront)
+  street         String?
+  city           String?
+  state          String?
+  postalCode     String?
+  country        String?
+  openingHours   Json? // { mon: { open, close } | null, ... }
+  holidays       Json? // [{ date: "YYYY-MM-DD", name }]
+  temporaryClosure Json? // { enabled, message, until }
+
+  deliveryEnabled Boolean @default(true)
+  deliveryRadius  Int?    // in km
+  minimumOrder    Decimal @default(0) @db.Decimal(10, 2)
+  pickupEnabled   Boolean @default(true)
+  dineInEnabled   Boolean @default(true)
+  deliveryFee    Decimal @default(0) @db.Decimal(10, 2)
+  taxName        String  @default("Tax")
+  taxRate        Decimal @default(0) @db.Decimal(5, 2) // percentage applied to order subtotal
+
+  currency       String  @default("GBP")
+  currencySymbol String  @default("£")
+  timezone       String  @default("Europe/London")
+
+  latitude       Float?
+  longitude      Float?
+  description      String?
+  shortDescription String?
+
+  facebookUrl  String?
+  instagramUrl String?
+  tiktokUrl    String?
+  twitterUrl   String?
+
+  metaTitle       String?
+  metaDescription String?
+  ogImageUrl      String?
+  ogImageKey      String?
+
+  primaryColor   String  @default("#E8C372")
+  secondaryColor String  @default("#8B5CF6")
+  themePreset    String  @default("midnight")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users        User[]
+  categories   Category[]
+  products     Product[]
+  customers    Customer[]
+  orders       Order[]
+  reservations Reservation[]
+  reviews      Review[]
+  coupons      Coupon[]
+}
+
+// ---------------------------------------------------------------------------
+// Auth / staff
+// ---------------------------------------------------------------------------
+model User {
+  id           String @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  name         String
+  email        String @unique
+  passwordHash String
+  role         Role   @default(OWNER)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([restaurantId])
+}
+
+// ---------------------------------------------------------------------------
+// Menu
+// ---------------------------------------------------------------------------
+model Category {
+  id           String @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  name     String
+  slug     String
+  position Int     @default(0)
+  isActive Boolean @default(true)
+
+  products  Product[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@unique([restaurantId, slug])
+  @@index([restaurantId])
+}
+
+model Product {
+  id           String @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  categoryId   String?
+  category     Category?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  name             String
+  slug             String
+  description      String?
+  shortDescription String?
+
+  // Images: ordered array of { url, key }. The first entry is the thumbnail.
+  images       Json     @default("[]")
+
+  price        Decimal  @db.Decimal(10, 2)
+  comparePrice Decimal? @db.Decimal(10, 2) // optional "was" price shown struck-through
+  costPrice    Decimal? @db.Decimal(10, 2) // internal cost, used for margin (never shown to customers)
+  discount     Decimal  @default(0) @db.Decimal(10, 2) // percentage off (0–100)
+
+  sku          String?
+  barcode      String?
+  calories     Int?
+  stockQuantity Int?
+  stockStatus  StockStatus @default(IN_STOCK)
+
+  status       ProductStatus @default(ACTIVE)
+  isAvailable  Boolean  @default(true)
+  featured     Boolean  @default(false)
+  bestSeller   Boolean  @default(false)
+
+  prepTimeMins Int?
+  ingredients  String[]
+  extras       Json? // [{ name, price, isActive }]
+  variants     Json? // [{ name, priceAdjustment, stock, sku }]
+
+  // Soft delete — rows are hidden, never physically removed by the UI.
+  deletedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orderItems OrderItem[]
+
+  @@unique([restaurantId, slug])
+  @@index([restaurantId])
+  @@index([restaurantId, categoryId])
+  @@index([restaurantId, deletedAt])
+  @@index([restaurantId, status])
+}
+
+// ---------------------------------------------------------------------------
+// Customers & orders
+// ---------------------------------------------------------------------------
+model Customer {
+  id           String @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  name    String?
+  phone   String
+  email   String?
+  address String?
+
+  tags   String[]       @default([])
+  status CustomerStatus @default(ACTIVE)
+
+  orders    Order[]
+  notes     CustomerNote[]
+  reviews   Review[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([restaurantId, phone])
+  @@index([restaurantId])
+  @@index([restaurantId, status])
+}
+
+// Timestamped CRM notes attached to a customer (add / edit / delete).
+model CustomerNote {
+  id           String   @id @default(cuid())
+  customerId   String
+  customer     Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  restaurantId String // denormalised for direct tenant-scoped access
+
+  body String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([customerId])
+  @@index([restaurantId])
+}
+
+model Order {
+  id           String @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  customerId   String?
+  customer     Customer?  @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  orderNumber String
+  type        OrderType   @default(DELIVERY)
+  status      OrderStatus @default(PENDING)
+
+  // Customer snapshot — denormalised so the order is self-contained even if the
+  // customer record is later edited or removed.
+  customerName  String?
+  customerPhone String?
+  customerEmail String?
+  address       String?
+
+  paymentMethod PaymentMethod @default(CASH)
+  paymentStatus PaymentStatus @default(UNPAID)
+
+  // Money — all Decimal(10,2). total = subtotal - discountAmount + taxAmount + deliveryFee.
+  subtotal       Decimal @default(0) @db.Decimal(10, 2)
+  discountAmount Decimal @default(0) @db.Decimal(10, 2)
+  taxAmount      Decimal @default(0) @db.Decimal(10, 2)
+  deliveryFee    Decimal @default(0) @db.Decimal(10, 2)
+  total          Decimal @db.Decimal(10, 2)
+
+  couponCode      String? // snapshot of an applied coupon code
+
+  notes           String? // customer-facing note (delivery instructions, etc.)
+  restaurantNotes String? // internal staff note, never shown to the customer
+
+  items     OrderItem[]
+  events    OrderEvent[]
+  review    Review?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([restaurantId, orderNumber])
+  @@index([restaurantId, status])
+  @@index([restaurantId, createdAt])
+  @@index([restaurantId, paymentStatus])
+  @@index([restaurantId, customerId])
+}
+
+model OrderItem {
+  id        String @id @default(cuid())
+  orderId   String
+  order     Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  nameSnapshot String
+  unitPrice    Decimal @db.Decimal(10, 2) // final per-unit price incl. variant + extras
+  quantity     Int     @default(1)
+  lineTotal    Decimal @db.Decimal(10, 2) // unitPrice * quantity
+  options      Json? // { variant?: { name, priceAdjustment }, extras: [{ name, price }] }
+
+  @@index([orderId])
+}
+
+// Append-only status/event log powering the order timeline.
+model OrderEvent {
+  id      String @id @default(cuid())
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  status OrderStatus
+  note   String?
+
+  createdAt DateTime @default(now())
+
+  @@index([orderId])
+}
+
+// ---------------------------------------------------------------------------
+// Storefront: reservations & reviews
+// ---------------------------------------------------------------------------
+model Reservation {
+  id           String @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  name      String
+  phone     String
+  email     String?
+  date      DateTime // requested date + time
+  partySize Int      @default(2)
+  notes     String?
+  status    ReservationStatus @default(PENDING)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([restaurantId, date])
+  @@index([restaurantId, status])
+}
+
+model Review {
+  id           String @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  customerId   String?
+  customer     Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  orderId      String?  @unique
+  order        Order?   @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  customerName String
+  rating       Int // 1..5
+  comment      String?
+  reply        String? // owner's response
+  repliedAt    DateTime?
+  isPublished  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([restaurantId, isPublished])
+  @@index([restaurantId, rating])
+  @@index([restaurantId, createdAt])
+}
+
+model Coupon {
+  id           String @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  code         String // stored uppercase, unique per restaurant
+  type         CouponType @default(PERCENTAGE)
+  value        Decimal    @db.Decimal(10, 2) // percent (0–100) or fixed amount
+  minimumOrder Decimal    @default(0) @db.Decimal(10, 2)
+  usageLimit   Int? // null = unlimited
+  usedCount    Int        @default(0)
+  startsAt     DateTime?
+  endsAt       DateTime?
+  isActive     Boolean    @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([restaurantId, code])
+  @@index([restaurantId])
+}

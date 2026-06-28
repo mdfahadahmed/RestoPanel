@@ -1,0 +1,32 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# next.js
+/.next
+/out
+next-env.d.ts
+*.tsbuildinfo
+
+# production
+/build
+
+# env
+.env
+.env.local
+.env*.local
+
+# prisma
+/prisma/*.db
+/prisma/*.db-journal
+/prisma/migrations/dev.db*
+
+# local uploads (LocalUploadService) — not committed
+/public/uploads
+
+# misc
+.DS_Store
+*.log
+.vscode/*
+!.vscode/extensions.json

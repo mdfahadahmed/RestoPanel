@@ -1,0 +1,20 @@
+# Local PostgreSQL for RestoPanel development.
+#   docker compose up -d
+# Then set in .env:
+#   DATABASE_URL="postgresql://restopanel:restopanel@localhost:5432/restopanel?schema=public"
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: restopanel-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: restopanel
+      POSTGRES_PASSWORD: restopanel
+      POSTGRES_DB: restopanel
+    ports:
+      - "5432:5432"
+    volumes:
+      - restopanel_pgdata:/var/lib/postgresql/data
+
+volumes:
+  restopanel_pgdata:

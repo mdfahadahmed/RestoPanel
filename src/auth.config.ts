@@ -1,5 +1,6 @@
 import type { NextAuthConfig } from "next-auth";
 import type { Role } from "@prisma/client";
+import { ADMIN_COOKIE, verifyAdminToken } from "./lib/admin/session";
 
 // Edge-safe Auth.js configuration. Intentionally contains NO database or
 // bcrypt imports so it can run inside middleware. The Credentials provider
@@ -12,12 +13,36 @@ export const authConfig = {
   trustHost: true,
   providers: [], // populated in auth.ts
   callbacks: {
-    // Gate the dashboard; bounce authenticated users away from auth pages.
-    authorized({ auth, request: { nextUrl } }) {
+    // Gate the dashboard and the (separately authenticated) admin area; bounce
+    // authenticated users away from the matching auth pages.
+    async authorized({ auth, request: { nextUrl, cookies } }) {
+      const { pathname } = nextUrl;
+
+      // --- Super Admin area -------------------------------------------------
+      // Gated EXCLUSIVELY by the standalone admin session cookie — a tenant
+      // owner's NextAuth session is irrelevant here, so owners can never enter.
+      if (pathname.startsWith("/admin")) {
+        const adminToken = await verifyAdminToken(
+          cookies.get(ADMIN_COOKIE)?.value
+        );
+        const isAdminLogin = pathname === "/admin/login";
+
+        if (isAdminLogin) {
+          if (adminToken) return Response.redirect(new URL("/admin", nextUrl));
+          return true;
+        }
+        if (!adminToken) {
+          const url = new URL("/admin/login", nextUrl);
+          url.searchParams.set("next", pathname);
+          return Response.redirect(url);
+        }
+        return true;
+      }
+
+      // --- Tenant dashboard -------------------------------------------------
       const isLoggedIn = !!auth?.user;
-      const isOnDashboard = nextUrl.pathname.startsWith("/dashboard");
-      const isOnAuthPage =
-        nextUrl.pathname === "/login" || nextUrl.pathname === "/register";
+      const isOnDashboard = pathname.startsWith("/dashboard");
+      const isOnAuthPage = pathname === "/login" || pathname === "/register";
 
       if (isOnDashboard) return isLoggedIn;
       if (isOnAuthPage && isLoggedIn) {

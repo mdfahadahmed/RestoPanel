@@ -11,7 +11,10 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
-    "db:seed": "tsx prisma/seed.ts"
+    "db:seed": "tsx prisma/seed.ts",
+    "db:seed:admin": "tsx scripts/seed-admin.ts",
+    "billing:renew": "tsx scripts/process-renewals.ts",
+    "test": "tsx scripts/run-tests.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.3.1",
@@ -22,6 +25,7 @@
     "@radix-ui/react-slot": "^1.1.2",
     "@radix-ui/react-switch": "^1.1.3",
     "@radix-ui/react-tabs": "^1.1.3",
+    "@types/qrcode": "^1.5.6",
     "bcryptjs": "^2.4.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -30,6 +34,7 @@
     "lucide-react": "^0.474.0",
     "next": "^15.1.6",
     "next-auth": "^5.0.0-beta.25",
+    "qrcode": "^1.5.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "sonner": "^1.7.4",

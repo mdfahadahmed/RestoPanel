@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { prisma } from "@/lib/prisma";
 
 const contactSchema = z.object({
   name: z.string().trim().min(1).max(120),
@@ -18,12 +19,14 @@ export async function POST(request: Request) {
     );
   }
 
-  // No email provider wired yet — log the lead. In production this would push
-  // to a CRM / send an email (e.g. Resend) / create a ticket.
-  console.info("[contact] New lead:", {
-    name: parsed.data.name,
-    email: parsed.data.email,
-    restaurant: parsed.data.restaurant || "—",
+  // Persist the lead so it surfaces in the admin CMS → Contact inbox.
+  await prisma.contactMessage.create({
+    data: {
+      name: parsed.data.name,
+      email: parsed.data.email,
+      restaurant: parsed.data.restaurant || null,
+      message: parsed.data.message,
+    },
   });
 
   return NextResponse.json({ ok: true });

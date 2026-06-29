@@ -7,6 +7,7 @@ import { requireTenant } from "@/lib/tenant";
 import { slugify } from "@/lib/slug";
 import { actionError, actionOk, type ActionResult } from "@/lib/action-result";
 import { copyAssets } from "@/lib/upload";
+import { checkLimit } from "@/lib/billing/limits";
 import {
   createProductSchema,
   updateProductSchema,
@@ -80,6 +81,14 @@ export async function createProduct(input: unknown): Promise<ActionResult<{ id: 
   const parsed = createProductSchema.safeParse(input);
   if (!parsed.success) {
     return actionError("Please fix the errors below", parsed.error.flatten().fieldErrors);
+  }
+
+  // Enforce the plan's product limit (no-op for restaurants without a plan).
+  const limit = await checkLimit(restaurantId, "products");
+  if (!limit.allowed) {
+    return actionError(
+      `You've reached your plan's product limit (${limit.limit}). Upgrade your plan to add more.`
+    );
   }
 
   const cat = await resolveCategoryId(restaurantId, parsed.data.categoryId);

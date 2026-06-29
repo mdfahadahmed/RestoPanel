@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { getRestaurantBySlug } from "@/lib/storefront/data";
 import { CartProvider } from "@/components/store/cart/CartProvider";
 import { StoreHeader } from "@/components/store/StoreHeader";
 import { StoreFooter } from "@/components/store/StoreFooter";
+import { TableIndicator } from "@/components/store/TableIndicator";
 import { Toaster } from "@/components/ui/sonner";
 
 export async function generateMetadata({
@@ -49,6 +51,9 @@ export default async function StoreLayout({
     <CartProvider slug={slug}>
       <div className="flex min-h-screen flex-col bg-ink-950 text-fog-200">
         <StoreHeader slug={slug} name={restaurant.name} logoUrl={restaurant.logoUrl} />
+        <Suspense fallback={null}>
+          <TableIndicator />
+        </Suspense>
         {closure?.enabled && (
           <div className="bg-amber-500/15 px-4 py-2.5 text-center text-sm text-amber-200">
             {closure.message || "We're temporarily closed for online orders. Please check back soon."}

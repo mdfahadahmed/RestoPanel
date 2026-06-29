@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireTenant } from "@/lib/tenant";
+import { canUseFeature } from "@/lib/billing/limits";
 import { actionError, actionOk, type ActionResult } from "@/lib/action-result";
 import { createCouponSchema, updateCouponSchema } from "@/lib/validations/coupon";
 
@@ -25,6 +26,12 @@ async function codeClash(restaurantId: string, code: string, excludeId?: string)
 
 export async function createCoupon(input: unknown): Promise<ActionResult<{ id: string }>> {
   const { restaurantId } = await requireTenant();
+
+  // Coupons are a plan capability (no-op for restaurants without a plan).
+  if (!(await canUseFeature(restaurantId, "coupons"))) {
+    return actionError("Coupons aren't included in your current plan. Upgrade to create them.");
+  }
+
   const parsed = createCouponSchema.safeParse(input);
   if (!parsed.success) {
     return actionError("Please fix the errors below", parsed.error.flatten().fieldErrors);

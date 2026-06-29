@@ -22,6 +22,97 @@ enum Role {
   STAFF
 }
 
+// Platform staff that operate the Super Admin panel. Kept entirely separate from
+// tenant `User`s — admins do not belong to a Restaurant and authenticate via a
+// dedicated session (see lib/admin/session.ts).
+enum AdminRole {
+  SUPER_ADMIN
+  ADMIN
+  SUPPORT
+}
+
+// Lifecycle of a tenant restaurant from the platform's point of view.
+enum RestaurantStatus {
+  ACTIVE
+  SUSPENDED
+  PENDING
+}
+
+enum BillingCycle {
+  MONTHLY
+  YEARLY
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  EXPIRED
+}
+
+enum InvoiceStatus {
+  PAID
+  OPEN
+  VOID
+  UNCOLLECTIBLE
+}
+
+enum TicketStatus {
+  OPEN
+  PENDING
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum TicketAuthorType {
+  ADMIN
+  OWNER
+}
+
+enum BlogStatus {
+  DRAFT
+  PUBLISHED
+}
+
+// QR code kinds. MENU → storefront home; TABLE → storefront with a table tag;
+// DYNAMIC → an editable, trackable redirect whose destination can change without
+// reprinting the code.
+enum QrType {
+  MENU
+  TABLE
+  DYNAMIC
+}
+
+// Notification Center — events the platform can notify customers/owners about.
+enum NotificationEvent {
+  ORDER_CONFIRMED
+  ORDER_PREPARING
+  ORDER_READY
+  ORDER_DELIVERED
+  RESERVATION
+  WELCOME
+}
+
+enum NotificationChannel {
+  EMAIL
+  SMS
+}
+
+enum NotificationStatus {
+  QUEUED
+  SENT
+  FAILED
+  SKIPPED // no recipient / channel disabled / provider not configured
+}
+
 enum OrderType {
   DELIVERY
   PICKUP
@@ -141,6 +232,12 @@ model Restaurant {
   secondaryColor String  @default("#8B5CF6")
   themePreset    String  @default("midnight")
 
+  // Platform administration state (managed only from the Super Admin panel).
+  status            RestaurantStatus @default(ACTIVE)
+  suspendedAt       DateTime?
+  suspendedReason   String?
+  platformDeletedAt DateTime? // soft-delete from the platform; row hidden, kept for audit
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -152,6 +249,15 @@ model Restaurant {
   reservations Reservation[]
   reviews      Review[]
   coupons      Coupon[]
+  subscription Subscription?
+  invoices     Invoice[]
+  tickets      SupportTicket[]
+  qrCodes      QrCode[]
+  notificationTemplates NotificationTemplate[]
+  notificationLogs      NotificationLog[]
+
+  @@index([status])
+  @@index([platformDeletedAt])
 }
 
 // ---------------------------------------------------------------------------
@@ -431,4 +537,348 @@ model Coupon {
 
   @@unique([restaurantId, code])
   @@index([restaurantId])
+}
+
+// ---------------------------------------------------------------------------
+// QR menu codes
+// ---------------------------------------------------------------------------
+model QrCode {
+  id           String @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  label String
+  type  QrType @default(MENU)
+
+  // Short public slug used by the /q/<code> redirect. Always set so any code can
+  // be made trackable; it is what a DYNAMIC code encodes.
+  code String @unique
+
+  tableNumber Int? // TABLE only
+  // DYNAMIC only — the storefront path it currently resolves to (editable).
+  // Null falls back to the restaurant's storefront home.
+  targetPath  String?
+
+  // When true the printed QR encodes /q/<code> (a redirect we can re-point and
+  // that records scans). When false it encodes the absolute destination directly.
+  isDynamic   Boolean @default(false)
+  logoEnabled Boolean @default(true)
+  isActive    Boolean @default(true)
+
+  scanCount     Int       @default(0)
+  lastScannedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([restaurantId])
+}
+
+// ---------------------------------------------------------------------------
+// Notification Center
+// ---------------------------------------------------------------------------
+
+// A per-restaurant override of a default notification template. Body/subject may
+// contain {{placeholders}} interpolated at send time. Absence of a row means the
+// built-in default template (lib/notifications/templates.ts) is used.
+model NotificationTemplate {
+  id           String @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  event   NotificationEvent
+  channel NotificationChannel
+
+  subject  String? // email only
+  body     String
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([restaurantId, event, channel])
+  @@index([restaurantId])
+}
+
+// Append-only history of every notification the platform attempted to send.
+model NotificationLog {
+  id           String @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  event    NotificationEvent
+  channel  NotificationChannel
+  provider String // "resend" | "twilio" | "log"
+
+  recipient String
+  subject   String?
+  body      String
+
+  status            NotificationStatus @default(QUEUED)
+  error             String?
+  providerMessageId String?
+
+  createdAt DateTime @default(now())
+
+  @@index([restaurantId, createdAt])
+  @@index([restaurantId, event])
+  @@index([restaurantId, status])
+}
+
+// ===========================================================================
+// PLATFORM / SUPER ADMIN
+// These models are owned by the platform operator, not by any tenant. They are
+// only ever read/written from the /admin area behind a SUPER_ADMIN session.
+// ===========================================================================
+
+// Platform operators. Completely separate from tenant `User`s.
+model AdminUser {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String
+  passwordHash String
+  role         AdminRole @default(SUPER_ADMIN)
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Subscription plans / pricing tiers. Drive both billing and the public Pricing
+// page (CMS). `features` is an ordered string array of bullet points.
+model Plan {
+  id           String   @id @default(cuid())
+  name         String
+  slug         String   @unique
+  description  String?
+  priceMonthly Decimal  @default(0) @db.Decimal(10, 2)
+  priceYearly  Decimal  @default(0) @db.Decimal(10, 2)
+  currency     String   @default("GBP")
+  features     String[] @default([])
+
+  // Usage limits — null means unlimited.
+  maxProducts Int?
+  maxOrders   Int? // per calendar month
+  maxStaff    Int?
+
+  // Feature restrictions (capabilities unlocked by this plan).
+  analytics        Boolean @default(false)
+  smsNotifications Boolean @default(false)
+  coupons          Boolean @default(false)
+  customDomain     Boolean @default(false)
+  prioritySupport  Boolean @default(false)
+
+  trialDays  Int     @default(14)
+  isActive   Boolean @default(true)
+  isFeatured Boolean @default(false)
+  // Rank used to decide upgrade vs downgrade (0 = lowest tier).
+  position   Int     @default(0)
+
+  // Stripe linkage (set once products/prices are created in Stripe).
+  stripeProductId      String?
+  stripePriceMonthlyId String?
+  stripePriceYearlyId  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  subscriptions Subscription[]
+}
+
+// One subscription per restaurant (the tenant's place on a Plan).
+model Subscription {
+  id           String @id @default(cuid())
+  restaurantId String @unique
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  planId       String
+  plan         Plan   @relation(fields: [planId], references: [id])
+
+  status       SubscriptionStatus @default(TRIALING)
+  billingCycle BillingCycle       @default(MONTHLY)
+  amount       Decimal            @db.Decimal(10, 2) // charged per cycle, snapshot of plan price
+
+  currentPeriodStart DateTime  @default(now())
+  currentPeriodEnd   DateTime
+  trialEndsAt        DateTime?
+  canceledAt         DateTime?
+  cancelAtPeriodEnd  Boolean   @default(false)
+
+  // Scheduled downgrade: applied at the end of the current period.
+  pendingPlanId       String?
+  pendingBillingCycle BillingCycle?
+
+  stripeCustomerId     String?
+  stripeSubscriptionId String? @unique
+  stripePriceId        String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  invoices Invoice[]
+
+  @@index([status])
+  @@index([currentPeriodEnd])
+  @@index([stripeCustomerId])
+}
+
+model Invoice {
+  id             String        @id @default(cuid())
+  restaurantId   String
+  restaurant     Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  subscriptionId String?
+  subscription   Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  number      String        @unique
+  amount      Decimal       @db.Decimal(10, 2)
+  currency    String        @default("GBP")
+  status      InvoiceStatus @default(OPEN)
+  description String?
+
+  periodStart DateTime?
+  periodEnd   DateTime?
+  issuedAt    DateTime  @default(now())
+  paidAt      DateTime?
+
+  // Stripe linkage + customer-facing document links.
+  stripeInvoiceId String? @unique
+  hostedUrl       String?
+  pdfUrl          String?
+
+  createdAt DateTime @default(now())
+
+  @@index([restaurantId])
+  @@index([status])
+  @@index([issuedAt])
+}
+
+// Idempotency log for Stripe webhooks — guarantees an event is processed once.
+model ProcessedWebhook {
+  id          String   @id // Stripe event id (evt_...)
+  type        String
+  processedAt DateTime @default(now())
+}
+
+// Support tickets. May be raised by a tenant (restaurantId set) or unattached.
+model SupportTicket {
+  id           String         @id @default(cuid())
+  restaurantId String?
+  restaurant   Restaurant?    @relation(fields: [restaurantId], references: [id], onDelete: SetNull)
+
+  subject      String
+  status       TicketStatus   @default(OPEN)
+  priority     TicketPriority @default(NORMAL)
+
+  // Denormalised requester snapshot so the ticket is self-contained.
+  requesterName  String
+  requesterEmail String
+
+  lastMessageAt DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  messages TicketMessage[]
+
+  @@index([status])
+  @@index([priority])
+  @@index([restaurantId])
+}
+
+model TicketMessage {
+  id       String        @id @default(cuid())
+  ticketId String
+  ticket   SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  authorType TicketAuthorType
+  authorName String
+  body       String
+
+  createdAt DateTime @default(now())
+
+  @@index([ticketId])
+}
+
+// ---------------------------------------------------------------------------
+// CMS — public marketing content edited from the admin panel.
+// ---------------------------------------------------------------------------
+
+// Generic key→content document for singleton pages (landing, pricing, contact).
+// `content` holds a page-specific JSON blob (hero copy, sections, etc.).
+model CmsPage {
+  id        String   @id @default(cuid())
+  key       String   @unique // e.g. "landing", "pricing", "contact"
+  title     String
+  content   Json     @default("{}")
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+}
+
+model FaqItem {
+  id          String  @id @default(cuid())
+  question    String
+  answer      String
+  category    String  @default("General")
+  position    Int     @default(0)
+  isPublished Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isPublished])
+}
+
+model BlogPost {
+  id          String     @id @default(cuid())
+  slug        String     @unique
+  title       String
+  excerpt     String?
+  content     String     @default("")
+  coverUrl    String?
+  author      String     @default("RestoPanel")
+  status      BlogStatus @default(DRAFT)
+  publishedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+}
+
+// Inbound messages from the public landing contact form.
+model ContactMessage {
+  id         String   @id @default(cuid())
+  name       String
+  email      String
+  restaurant String?
+  message    String
+  isRead     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@index([isRead])
+  @@index([createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Platform settings — a single global row (integrations + branding).
+// Secrets live here rather than env so they can be edited from the panel.
+// ---------------------------------------------------------------------------
+model PlatformSettings {
+  id String @id @default("singleton") // enforce a single row
+
+  // Branding
+  platformName String  @default("RestoPanel")
+  logoUrl      String?
+  faviconUrl   String?
+  supportEmail String?
+
+  // Integration config blobs: { ...keys, enabled }. Validated at the edge.
+  smtp       Json @default("{}")
+  cloudinary Json @default("{}")
+  stripe     Json @default("{}")
+  sms        Json @default("{}") // Twilio (SMS notifications)
+  resend     Json @default("{}") // Resend (email notifications)
+  googleMaps Json @default("{}")
+
+  updatedAt DateTime @updatedAt
 }

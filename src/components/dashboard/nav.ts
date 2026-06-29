@@ -7,6 +7,8 @@ import {
   BarChart3,
   Star,
   TicketPercent,
+  QrCode,
+  CreditCard,
   Settings,
   type LucideIcon,
 } from "lucide-react";
@@ -26,5 +28,7 @@ export const DASHBOARD_NAV: NavItem[] = [
   { label: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
   { label: "Reviews", href: "/dashboard/reviews", icon: Star },
   { label: "Coupons", href: "/dashboard/coupons", icon: TicketPercent },
+  { label: "QR Menu", href: "/dashboard/qr", icon: QrCode },
+  { label: "Billing", href: "/dashboard/billing", icon: CreditCard },
   { label: "Settings", href: "/dashboard/settings", icon: Settings },
 ];

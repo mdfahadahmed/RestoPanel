@@ -3,6 +3,8 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { registerSchema } from "@/lib/validations/auth";
 import { generateUniqueRestaurantSlug } from "@/lib/slug";
+import { getFreePlan } from "@/lib/billing/plans";
+import { subscribeToPlan } from "@/lib/billing/subscription";
 
 export async function POST(request: Request) {
   let payload: unknown;
@@ -56,6 +58,17 @@ export async function POST(request: Request) {
     },
     select: { id: true, slug: true, name: true },
   });
+
+  // Place the new tenant on the Free plan so usage limits & feature gates apply.
+  // Non-fatal: registration must still succeed if no plan has been seeded yet.
+  try {
+    const freePlan = await getFreePlan();
+    if (freePlan) {
+      await subscribeToPlan({ restaurantId: restaurant.id, plan: freePlan, status: "ACTIVE" });
+    }
+  } catch (e) {
+    console.error("[register] could not provision Free subscription", e);
+  }
 
   return NextResponse.json(
     {

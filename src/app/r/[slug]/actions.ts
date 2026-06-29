@@ -8,6 +8,8 @@ import { computeTotals, round2 } from "@/lib/validations/order";
 import { checkoutSchema, reservationSchema } from "@/lib/validations/storefront";
 import { createReviewSchema } from "@/lib/validations/review";
 import { evaluateCoupon } from "@/lib/coupons/evaluate";
+import { notifyReservation } from "@/lib/notifications/notify";
+import { createReservation, getDayAvailability } from "@/lib/reservations/bookings";
 
 // Public checkout — NO session. The restaurant is resolved from the public slug
 // and every write is scoped to that restaurantId. Pricing/tax/delivery are taken
@@ -149,7 +151,24 @@ export async function validateCouponPublic(
   return actionOk({ code: result.code, discount: result.discount });
 }
 
-export async function createReservationPublic(slug: string, input: unknown): Promise<ActionResult> {
+/** Public: available time slots for a date + party size (for the booking form). */
+export async function getAvailableSlotsPublic(
+  slug: string,
+  date: string,
+  partySize: number
+): Promise<ActionResult<{ slots: string[] }>> {
+  const restaurant = await prisma.restaurant.findUnique({ where: { slug }, select: { id: true } });
+  if (!restaurant) return actionError("Restaurant not found");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return actionError("Invalid date");
+
+  const { slots } = await getDayAvailability(restaurant.id, date, Math.max(1, Number(partySize) || 1));
+  return actionOk({ slots: slots.filter((s) => s.available).map((s) => s.time) });
+}
+
+export async function createReservationPublic(
+  slug: string,
+  input: unknown
+): Promise<ActionResult<{ reference: string }>> {
   const restaurant = await prisma.restaurant.findUnique({ where: { slug }, select: { id: true } });
   if (!restaurant) return actionError("Restaurant not found");
 
@@ -159,28 +178,25 @@ export async function createReservationPublic(slug: string, input: unknown): Pro
   }
   const data = parsed.data;
 
-  const when = new Date(`${data.date}T${data.time}:00`);
-  if (Number.isNaN(when.getTime())) {
-    return actionError("Please fix the errors below", { date: ["Invalid date or time"] });
-  }
-  if (when.getTime() < Date.now() - 60_000) {
-    return actionError("Please fix the errors below", { date: ["Pick a future date and time"] });
-  }
-
-  await prisma.reservation.create({
-    data: {
-      restaurantId: restaurant.id,
-      name: data.name,
-      phone: data.phone,
-      email: data.email || null,
-      date: when,
-      partySize: data.partySize,
-      notes: data.notes || null,
-      status: "PENDING",
-    },
+  // Availability + table assignment handled by the shared booking engine.
+  const result = await createReservation({
+    restaurantId: restaurant.id,
+    name: data.name,
+    phone: data.phone,
+    email: data.email || null,
+    date: data.date,
+    time: data.time,
+    partySize: data.partySize,
+    notes: data.notes || null,
+    source: "WEBSITE",
+    enforceSlot: true,
   });
+  if (!result.ok) return actionError(result.error);
 
-  return actionOk();
+  // Confirm to the guest (best-effort, non-blocking).
+  await notifyReservation(result.id).catch(() => undefined);
+
+  return actionOk({ reference: result.reference });
 }
 
 // Public review submission, tied to a delivered order (one review per order).

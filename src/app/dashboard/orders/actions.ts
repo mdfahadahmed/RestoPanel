@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { requireTenant } from "@/lib/tenant";
 import { actionError, actionOk, type ActionResult } from "@/lib/action-result";
 import { buildOrderItems, nextOrderNumber } from "@/lib/orders/build";
+import { notifyOrderStatus } from "@/lib/notifications/notify";
 import {
   createOrderSchema,
   updateStatusSchema,
@@ -138,6 +139,9 @@ export async function updateOrderStatus(input: unknown): Promise<ActionResult> {
       data: { orderId: order.id, status, note: note || null },
     }),
   ]);
+
+  // Fire the customer notification for this status (best-effort, non-blocking).
+  await notifyOrderStatus(order.id, status).catch(() => undefined);
 
   revalidatePath("/dashboard/orders");
   revalidatePath(`/dashboard/orders/${order.id}`);

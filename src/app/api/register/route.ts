@@ -5,6 +5,7 @@ import { registerSchema } from "@/lib/validations/auth";
 import { generateUniqueRestaurantSlug } from "@/lib/slug";
 import { getFreePlan } from "@/lib/billing/plans";
 import { subscribeToPlan } from "@/lib/billing/subscription";
+import { sendWelcomeEmail } from "@/lib/notifications/notify";
 
 export async function POST(request: Request) {
   let payload: unknown;
@@ -69,6 +70,9 @@ export async function POST(request: Request) {
   } catch (e) {
     console.error("[register] could not provision Free subscription", e);
   }
+
+  // Welcome email (best-effort — never block signup).
+  await sendWelcomeEmail(restaurant.id, email, ownerName).catch(() => undefined);
 
   return NextResponse.json(
     {

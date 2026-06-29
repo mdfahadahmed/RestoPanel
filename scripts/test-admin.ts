@@ -236,6 +236,7 @@ async function main() {
       cloudinary: { cloudName: "", apiKey: "", apiSecret: "", enabled: false },
       stripe: { publishableKey: "pk", secretKey: "sk", webhookSecret: "wh", enabled: true },
       sms: { provider: "twilio", accountSid: "sid", authToken: "tok", fromNumber: "+44", enabled: false },
+      resend: { apiKey: "re_x", fromEmail: "no-reply@test", fromName: "Test", enabled: false },
       googleMaps: { apiKey: "gm", enabled: true },
     });
     const saved = await getPlatformSettings();
@@ -266,6 +267,7 @@ async function main() {
         cloudinary: settingsBefore.cloudinary as object,
         stripe: settingsBefore.stripe as object,
         sms: settingsBefore.sms as object,
+        resend: settingsBefore.resend as object,
         googleMaps: settingsBefore.googleMaps as object,
       },
     });

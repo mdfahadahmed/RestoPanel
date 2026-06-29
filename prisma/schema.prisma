@@ -98,6 +98,9 @@ enum NotificationEvent {
   ORDER_READY
   ORDER_DELIVERED
   RESERVATION
+  RESERVATION_CONFIRMED
+  RESERVATION_REJECTED
+  RESERVATION_RESCHEDULED
   WELCOME
 }
 
@@ -122,7 +125,17 @@ enum OrderType {
 enum ReservationStatus {
   PENDING
   CONFIRMED
+  REJECTED
+  SEATED
+  COMPLETED
+  NO_SHOW
   CANCELLED
+}
+
+enum ReservationSource {
+  WEBSITE
+  DASHBOARD
+  PHONE
 }
 
 enum OrderStatus {
@@ -255,6 +268,9 @@ model Restaurant {
   qrCodes      QrCode[]
   notificationTemplates NotificationTemplate[]
   notificationLogs      NotificationLog[]
+  apiKeys               ApiKey[]
+  tables                RestaurantTable[]
+  reservationSetting    ReservationSetting?
 
   @@index([status])
   @@index([platformDeletedAt])
@@ -478,19 +494,74 @@ model Reservation {
   restaurantId String
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
+  // Optional assigned table (auto-assigned on booking when tables exist).
+  tableId String?
+  table   RestaurantTable? @relation(fields: [tableId], references: [id], onDelete: SetNull)
+
   name      String
   phone     String
   email     String?
-  date      DateTime // requested date + time
+  date      DateTime // requested date + time (start)
+  durationMins Int    @default(90)
   partySize Int      @default(2)
   notes     String?
   status    ReservationStatus @default(PENDING)
+  source    ReservationSource @default(WEBSITE)
+  reference String? // short human code for lookups (unique per restaurant)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@unique([restaurantId, reference])
   @@index([restaurantId, date])
   @@index([restaurantId, status])
+  @@index([tableId, date])
+}
+
+// ---------------------------------------------------------------------------
+// Reservation tables & settings
+// ---------------------------------------------------------------------------
+model RestaurantTable {
+  id           String @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  name     String // e.g. "T1", "Patio 3"
+  capacity Int    @default(2)
+  location String? // "Indoor", "Patio", "Bar"
+  isActive Boolean @default(true)
+  position Int     @default(0)
+
+  reservations Reservation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([restaurantId, name])
+  @@index([restaurantId])
+}
+
+// Per-restaurant reservation configuration (a single row per restaurant).
+model ReservationSetting {
+  id           String @id @default(cuid())
+  restaurantId String @unique
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  enabled         Boolean @default(true)
+  slotMinutes     Int     @default(30) // granularity of bookable times
+  durationMins    Int     @default(90) // how long a table is held
+  minPartySize    Int     @default(1)
+  maxPartySize    Int     @default(12)
+  capacityPerSlot Int? // covers per slot when NO tables are defined; null = unlimited
+  leadTimeHours   Int     @default(2) // minimum notice
+  horizonDays     Int     @default(60) // how far ahead bookings are allowed
+  requireApproval Boolean @default(true)
+
+  // Per-weekday open windows: { mon: [{open:"17:00",close:"22:00"}], ... }
+  openingHours Json @default("{}")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Review {
@@ -623,6 +694,52 @@ model NotificationLog {
   @@index([restaurantId, createdAt])
   @@index([restaurantId, event])
   @@index([restaurantId, status])
+}
+
+// ---------------------------------------------------------------------------
+// Public REST API
+// ---------------------------------------------------------------------------
+
+// A restaurant's API credential. Only the SHA-256 hash of the secret is stored;
+// the plaintext key is shown to the owner exactly once at creation time.
+model ApiKey {
+  id           String @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  name      String
+  prefix    String // public, shown in the UI e.g. "rp_live_ab12cd"
+  hashedKey String @unique // sha256(plaintext)
+  last4     String
+
+  scopes          String[] @default([])
+  rateLimitPerMin Int      @default(60)
+
+  isActive   Boolean   @default(true)
+  lastUsedAt DateTime?
+  expiresAt  DateTime?
+  revokedAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  windows ApiRateWindow[]
+
+  @@index([restaurantId])
+}
+
+// Fixed-window rate-limit counter (one row per key per minute). DB-backed so it
+// needs no external store; old windows are pruned opportunistically.
+model ApiRateWindow {
+  id       String @id @default(cuid())
+  apiKeyId String
+  apiKey   ApiKey @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+
+  windowStart Int // epoch-minute bucket (floor(epochMs / 60000))
+  count       Int @default(0)
+
+  @@unique([apiKeyId, windowStart])
+  @@index([apiKeyId])
 }
 
 // ===========================================================================

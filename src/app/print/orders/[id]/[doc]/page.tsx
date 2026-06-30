@@ -21,23 +21,35 @@ export default async function PrintOrderPage({
   const { id, doc } = await params;
   if (!DOCS.includes(doc as Doc)) notFound();
 
-  const [order, restaurant] = await Promise.all([
+  const [order, restaurant, payments] = await Promise.all([
     loadOrder(restaurantId, id),
     prisma.restaurant.findUnique({
       where: { id: restaurantId },
       select: { name: true, address: true, phone: true, email: true },
     }),
+    prisma.payment.findMany({
+      where: { restaurantId, orderId: id },
+      orderBy: { createdAt: "asc" },
+      select: { kind: true, method: true, amount: true, tendered: true, changeGiven: true },
+    }),
   ]);
   if (!order) notFound();
 
   const headerName = restaurant?.name ?? restaurantName;
+  const posPayments = payments.map((p) => ({
+    kind: p.kind,
+    method: p.method,
+    amount: Number(p.amount),
+    tendered: p.tendered != null ? Number(p.tendered) : null,
+    changeGiven: p.changeGiven != null ? Number(p.changeGiven) : null,
+  }));
 
   return (
     <div className="mx-auto max-w-[420px] bg-white px-6 py-8 font-sans text-black print:max-w-none">
       <PrintAuto />
       <style>{`@media print { @page { margin: 12mm; } body { background: #fff; } }`}</style>
       {doc === "kitchen" && <KitchenTicket order={order} restaurantName={headerName} />}
-      {doc === "receipt" && <Receipt order={order} restaurantName={headerName} />}
+      {doc === "receipt" && <Receipt order={order} restaurantName={headerName} payments={posPayments} />}
       {doc === "invoice" && <Invoice order={order} restaurant={restaurant} restaurantName={headerName} />}
 
       <p className="mt-8 text-center text-xs text-neutral-500 print:hidden">
@@ -118,7 +130,24 @@ function KitchenTicket({ order, restaurantName }: { order: LoadedOrder; restaura
   );
 }
 
-function Receipt({ order, restaurantName }: { order: LoadedOrder; restaurantName: string }) {
+interface ReceiptPayment {
+  kind: "SALE" | "REFUND";
+  method: PaymentMethod;
+  amount: number;
+  tendered: number | null;
+  changeGiven: number | null;
+}
+
+function Receipt({
+  order,
+  restaurantName,
+  payments,
+}: {
+  order: LoadedOrder;
+  restaurantName: string;
+  payments: ReceiptPayment[];
+}) {
+  const change = payments.reduce((s, p) => s + (p.changeGiven ?? 0), 0);
   return (
     <div>
       <div className="text-center">
@@ -130,14 +159,36 @@ function Receipt({ order, restaurantName }: { order: LoadedOrder; restaurantName
         <Items order={order} withPrices />
         <Totals order={order} />
       </div>
-      <div className="mt-3 text-sm">
-        <div className="flex justify-between">
-          <span className="text-neutral-600">Payment</span>
-          <span>
-            {PAYMENT_METHOD_LABEL[order.paymentMethod as PaymentMethod]} ·{" "}
-            {PAYMENT_STATUS_META[order.paymentStatus as PaymentStatus].label}
-          </span>
-        </div>
+      <div className="mt-3 space-y-1 text-sm">
+        {payments.length > 0 ? (
+          payments.map((p, i) => (
+            <div key={i} className="flex justify-between">
+              <span className="text-neutral-600">
+                {p.kind === "REFUND" ? "Refund · " : ""}
+                {PAYMENT_METHOD_LABEL[p.method]}
+                {p.tendered != null ? ` (given ${formatCurrency(p.tendered)})` : ""}
+              </span>
+              <span>
+                {p.kind === "REFUND" ? "−" : ""}
+                {formatCurrency(p.amount)}
+              </span>
+            </div>
+          ))
+        ) : (
+          <div className="flex justify-between">
+            <span className="text-neutral-600">Payment</span>
+            <span>
+              {PAYMENT_METHOD_LABEL[order.paymentMethod as PaymentMethod]} ·{" "}
+              {PAYMENT_STATUS_META[order.paymentStatus as PaymentStatus].label}
+            </span>
+          </div>
+        )}
+        {change > 0 && (
+          <div className="flex justify-between font-medium">
+            <span className="text-neutral-600">Change</span>
+            <span>{formatCurrency(change)}</span>
+          </div>
+        )}
       </div>
       <p className="mt-6 text-center text-xs text-neutral-600">Thank you for your order!</p>
     </div>

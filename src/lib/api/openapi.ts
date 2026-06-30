@@ -48,6 +48,7 @@ export function buildOpenApiSpec() {
     tags: [
       { name: "Meta" }, { name: "Restaurant" }, { name: "Products" },
       { name: "Categories" }, { name: "Orders" }, { name: "Customers" },
+      { name: "Mobile" },
     ],
     paths: {
       "/": {
@@ -125,10 +126,70 @@ export function buildOpenApiSpec() {
           responses: { "200": { description: "Paginated customers", headers: rateLimitHeaders, content: { "application/json": { schema: { $ref: "#/components/schemas/CustomerList" } } } }, ...commonResponses },
         },
       },
+      "/mobile/auth/login": {
+        post: {
+          tags: ["Mobile"], summary: "Mobile staff login", operationId: "mobileLogin", security: [],
+          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/MobileLogin" } } } },
+          responses: { "200": { description: "Access + refresh tokens", content: { "application/json": { schema: { $ref: "#/components/schemas/MobileSession" } } } }, "401": errorResponse("Invalid credentials") },
+        },
+      },
+      "/mobile/auth/refresh": {
+        post: {
+          tags: ["Mobile"], summary: "Rotate tokens", operationId: "mobileRefresh", security: [],
+          requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["refreshToken"], properties: { refreshToken: { type: "string" } } } } } },
+          responses: { "200": { description: "New tokens" }, "401": errorResponse("Invalid refresh token") },
+        },
+      },
+      "/mobile/auth/logout": {
+        post: {
+          tags: ["Mobile"], summary: "Revoke device session", operationId: "mobileLogout", security: [],
+          requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["refreshToken"], properties: { refreshToken: { type: "string" } } } } } },
+          responses: { "200": { description: "Logged out" } },
+        },
+      },
+      "/mobile/me": {
+        get: {
+          tags: ["Mobile"], summary: "Current user, restaurant & permissions", operationId: "mobileMe",
+          security: [{ MobileBearerAuth: [] }],
+          responses: { "200": { description: "Account profile" }, "401": errorResponse("Missing or invalid access token") },
+        },
+      },
+      "/mobile/devices": {
+        post: {
+          tags: ["Mobile"], summary: "Register this device's push token", operationId: "mobileRegisterDevice",
+          security: [{ MobileBearerAuth: [] }],
+          requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["pushToken"], properties: { pushToken: { type: "string" }, platform: { type: "string", enum: ["IOS", "ANDROID", "WEB"] } } } } } },
+          responses: { "200": { description: "Registered" }, "401": errorResponse("Unauthorized") },
+        },
+        delete: {
+          tags: ["Mobile"], summary: "Stop receiving push on this device", operationId: "mobileUnregisterDevice",
+          security: [{ MobileBearerAuth: [] }],
+          responses: { "200": { description: "Unregistered" }, "401": errorResponse("Unauthorized") },
+        },
+      },
+      "/mobile/sync": {
+        get: {
+          tags: ["Mobile"], summary: "Delta sync for offline cache", operationId: "mobileSync",
+          security: [{ MobileBearerAuth: [] }],
+          parameters: [
+            { name: "since", in: "query", schema: { type: "string", format: "date-time" }, description: "Cursor from the previous sync (omit for a full sync)" },
+            { name: "limit", in: "query", schema: { type: "integer", default: 200, maximum: 500 } },
+          ],
+          responses: { "200": { description: "Records changed since the cursor + a new serverTime cursor" }, "401": errorResponse("Unauthorized") },
+        },
+      },
+      "/mobile/push/test": {
+        post: {
+          tags: ["Mobile"], summary: "Send a test push to the caller's devices", operationId: "mobilePushTest",
+          security: [{ MobileBearerAuth: [] }],
+          responses: { "200": { description: "Dispatch result (sent/skipped)" }, "401": errorResponse("Unauthorized") },
+        },
+      },
     },
     components: {
       securitySchemes: {
         ApiKeyAuth: { type: "http", scheme: "bearer", bearerFormat: "rp_live_…", description: "Your secret API key" },
+        MobileBearerAuth: { type: "http", scheme: "bearer", bearerFormat: "JWT", description: "Mobile access token from /mobile/auth/login" },
       },
       schemas: {
         Error: {
@@ -186,6 +247,23 @@ export function buildOpenApiSpec() {
             customer: { type: "object", required: ["name", "phone"], properties: { name: { type: "string" }, phone: { type: "string" }, email: { type: "string" }, address: { type: "string" } } },
             items: { type: "array", items: { type: "object", required: ["productId", "quantity"], properties: { productId: { type: "string" }, quantity: { type: "integer", minimum: 1 }, variant: { type: "object", properties: { name: { type: "string" } } }, extras: { type: "array", items: { type: "object", properties: { name: { type: "string" } } } } } } },
             notes: { type: "string" },
+          },
+        },
+        MobileLogin: {
+          type: "object",
+          required: ["email", "password"],
+          properties: {
+            email: { type: "string" }, password: { type: "string" },
+            platform: { type: "string", enum: ["IOS", "ANDROID", "WEB"] },
+            deviceName: { type: "string" }, pushToken: { type: "string" },
+          },
+        },
+        MobileSession: {
+          type: "object",
+          properties: {
+            accessToken: { type: "string" }, refreshToken: { type: "string" }, expiresIn: { type: "integer" }, deviceId: { type: "string" },
+            user: { type: "object", properties: { id: { type: "string" }, name: { type: "string" }, email: { type: "string" }, role: { type: "string" } } },
+            restaurant: { type: "object", properties: { id: { type: "string" }, name: { type: "string" }, slug: { type: "string" } } },
           },
         },
         ProductList: { type: "object", properties: { data: { type: "array", items: { $ref: "#/components/schemas/Product" } }, meta: { $ref: "#/components/schemas/Pagination" } } },

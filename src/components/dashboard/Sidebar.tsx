@@ -31,8 +31,9 @@ export function Sidebar() {
               <Link
                 key={href}
                 href={href}
+                aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition",
+                  "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/40",
                   active
                     ? "bg-ink-800 text-fog-100"
                     : "text-fog-400 hover:bg-ink-800/60 hover:text-fog-200"

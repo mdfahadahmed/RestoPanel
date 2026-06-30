@@ -7,6 +7,7 @@ import { requireTenant } from "@/lib/tenant";
 import { actionError, actionOk, type ActionResult } from "@/lib/action-result";
 import { buildOrderItems, nextOrderNumber } from "@/lib/orders/build";
 import { notifyOrderStatus } from "@/lib/notifications/notify";
+import { accrueForOrder } from "@/lib/loyalty/engine";
 import {
   createOrderSchema,
   updateStatusSchema,
@@ -142,6 +143,11 @@ export async function updateOrderStatus(input: unknown): Promise<ActionResult> {
 
   // Fire the customer notification for this status (best-effort, non-blocking).
   await notifyOrderStatus(order.id, status).catch(() => undefined);
+
+  // Award loyalty points/cashback once an order is completed (idempotent).
+  if (status === "DELIVERED") {
+    await accrueForOrder(restaurantId, order.id).catch(() => undefined);
+  }
 
   revalidatePath("/dashboard/orders");
   revalidatePath(`/dashboard/orders/${order.id}`);

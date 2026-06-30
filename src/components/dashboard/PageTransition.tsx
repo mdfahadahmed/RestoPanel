@@ -9,6 +9,10 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   useEffect(() => {
+    // Honour users who prefer reduced motion — skip the animation entirely.
+    if (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      return;
+    }
     let ctx: { revert: () => void } | undefined;
     (async () => {
       const { gsap } = await import("gsap");

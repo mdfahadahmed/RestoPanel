@@ -3,6 +3,8 @@ import { checkRateLimit, rateLimitHeaders } from "./ratelimit";
 import { hasScope, type ApiScope } from "./scopes";
 import { apiError, type ApiResponse, API_VERSION } from "./respond";
 import type { ApiContext } from "./endpoints";
+import { captureError } from "@/lib/monitoring";
+import { getClientIp, ipAllowed } from "@/lib/security/ip";
 
 /**
  * The single gateway every /api/v1 route handler runs through:
@@ -35,6 +37,11 @@ export async function handleApi(
     });
   }
 
+  // IP allowlist (when configured on the key) — fail closed on unknown IPs.
+  if (auth.apiKey.ipAllowlist.length > 0 && !ipAllowed(getClientIp(request.headers), auth.apiKey.ipAllowlist)) {
+    return toResponse(apiError(403, "ip_not_allowed", "This API key is not permitted from your IP address"));
+  }
+
   const rl = await checkRateLimit(auth.apiKey.id, auth.apiKey.rateLimitPerMin);
   const rlHeaders = rateLimitHeaders(rl);
   if (!rl.allowed) {
@@ -56,7 +63,7 @@ export async function handleApi(
     const res = await handler(ctx, request);
     return toResponse(res, rlHeaders);
   } catch (e) {
-    console.error("[api] handler error", e);
+    await captureError(e, { surface: "public-api", restaurantId: auth.restaurantId });
     return toResponse(apiError(500, "internal_error", "Something went wrong"), rlHeaders);
   }
 }

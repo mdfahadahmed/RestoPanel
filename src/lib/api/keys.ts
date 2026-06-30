@@ -98,6 +98,7 @@ export interface CreateApiKeyInput {
   scopes: string[];
   rateLimitPerMin?: number;
   expiresAt?: Date | null;
+  ipAllowlist?: string[]; // empty = any IP
 }
 
 export async function createApiKey(input: CreateApiKeyInput): Promise<{ apiKey: ApiKey; plaintext: string }> {
@@ -112,6 +113,7 @@ export async function createApiKey(input: CreateApiKeyInput): Promise<{ apiKey: 
       last4: generated.last4,
       scopes,
       rateLimitPerMin: input.rateLimitPerMin ?? 60,
+      ipAllowlist: (input.ipAllowlist ?? []).map((s) => s.trim()).filter(Boolean),
       expiresAt: input.expiresAt ?? null,
     },
   });

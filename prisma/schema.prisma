@@ -19,7 +19,11 @@ datasource db {
 enum Role {
   OWNER
   MANAGER
-  STAFF
+  STAFF // generic / legacy staff
+  CASHIER
+  KITCHEN // kitchen staff
+  WAITER
+  DELIVERY
 }
 
 // Platform staff that operate the Super Admin panel. Kept entirely separate from
@@ -107,6 +111,14 @@ enum NotificationEvent {
 enum NotificationChannel {
   EMAIL
   SMS
+  PUSH
+}
+
+// Platform a mobile device runs on (for push routing + analytics).
+enum MobilePlatform {
+  IOS
+  ANDROID
+  WEB
 }
 
 enum NotificationStatus {
@@ -162,6 +174,25 @@ enum PaymentStatus {
   REFUNDED
 }
 
+// POS payment ledger ---------------------------------------------------------
+enum PaymentKind {
+  SALE
+  REFUND
+}
+
+enum DrawerStatus {
+  OPEN
+  CLOSED
+}
+
+enum DrawerMovementType {
+  OPENING // starting float
+  SALE // cash taken in for a sale
+  REFUND // cash paid out for a refund
+  PAY_IN // manual cash added (e.g. change float top-up)
+  PAY_OUT // manual cash removed (e.g. supplier paid in cash)
+}
+
 enum CustomerStatus {
   ACTIVE
   INACTIVE
@@ -171,6 +202,16 @@ enum CustomerStatus {
 enum CouponType {
   PERCENTAGE
   FIXED
+}
+
+// Customer loyalty ledger entry types.
+enum LoyaltyTxnType {
+  EARN // points earned from an order
+  REDEEM // points spent (negative)
+  CASHBACK // cashback credited from an order
+  CASHBACK_REDEEM // cashback spent (negative)
+  BIRTHDAY // birthday bonus points
+  ADJUST // manual adjustment by staff
 }
 
 enum StockStatus {
@@ -226,6 +267,11 @@ model Restaurant {
   currencySymbol String  @default("£")
   timezone       String  @default("Europe/London")
 
+  // Custom domain (premium): a verified hostname that serves this restaurant's
+  // storefront. Unique platform-wide; verified once DNS points at the app.
+  customDomain           String?   @unique
+  customDomainVerifiedAt DateTime?
+
   latitude       Float?
   longitude      Float?
   description      String?
@@ -271,6 +317,14 @@ model Restaurant {
   apiKeys               ApiKey[]
   tables                RestaurantTable[]
   reservationSetting    ReservationSetting?
+  drawerSessions        DrawerSession[]
+  staffShifts           StaffShift[]
+  attendanceRecords     AttendanceRecord[]
+  loyaltyProgram        LoyaltyProgram?
+  loyaltyTxns           LoyaltyTransaction[]
+  mobileDevices         MobileDevice[]
+  auditLogs             AuditLog[]
+  loginEvents           LoginEvent[]
 
   @@index([status])
   @@index([platformDeletedAt])
@@ -288,6 +342,21 @@ model User {
   email        String @unique
   passwordHash String
   role         Role   @default(OWNER)
+
+  phone    String?
+  isActive Boolean @default(true) // deactivated staff cannot be assigned shifts
+
+  // Security
+  twoFactorSecret      String? // base32 TOTP secret (set once 2FA is enabled)
+  twoFactorEnabledAt   DateTime?
+  twoFactorBackupCodes String[]  @default([]) // sha256-hashed single-use recovery codes
+  tokenVersion         Int       @default(0) // bump to invalidate all issued sessions
+  lastLoginAt          DateTime?
+
+  shifts        StaffShift[]
+  attendance    AttendanceRecord[]
+  mobileDevices MobileDevice[]
+  passkeys      Passkey[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -383,15 +452,26 @@ model Customer {
   tags   String[]       @default([])
   status CustomerStatus @default(ACTIVE)
 
-  orders    Order[]
-  notes     CustomerNote[]
-  reviews   Review[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  // Loyalty
+  loyaltyPoints   Int       @default(0) // current redeemable balance
+  lifetimePoints  Int       @default(0) // ever-earned, drives VIP tier
+  cashbackBalance Decimal   @default(0) @db.Decimal(10, 2) // store credit
+  vipTier         String    @default("Bronze")
+  birthday        DateTime?
+  isMember        Boolean   @default(false)
+  memberSince     DateTime?
+
+  orders      Order[]
+  notes       CustomerNote[]
+  reviews     Review[]
+  loyaltyTxns LoyaltyTransaction[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@unique([restaurantId, phone])
   @@index([restaurantId])
   @@index([restaurantId, status])
+  @@index([restaurantId, isMember])
 }
 
 // Timestamped CRM notes attached to a customer (add / edit / delete).
@@ -443,8 +523,11 @@ model Order {
   notes           String? // customer-facing note (delivery instructions, etc.)
   restaurantNotes String? // internal staff note, never shown to the customer
 
+  kitchenPriority Boolean @default(false) // staff-flagged rush order on the KDS
+
   items     OrderItem[]
   events    OrderEvent[]
+  payments  Payment[]
   review    Review?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -484,6 +567,171 @@ model OrderEvent {
   createdAt DateTime @default(now())
 
   @@index([orderId])
+}
+
+// ---------------------------------------------------------------------------
+// Point of Sale — payments (incl. split bill + refunds) & cash drawer
+// ---------------------------------------------------------------------------
+
+// A single tender against an order. An order can have many (split bill); a
+// refund is a row with kind = REFUND. restaurantId is denormalised for direct
+// tenant-scoped queries; rows cascade-delete with their order.
+model Payment {
+  id           String @id @default(cuid())
+  restaurantId String
+  orderId      String
+  order        Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  drawerSessionId String?
+  drawerSession   DrawerSession? @relation(fields: [drawerSessionId], references: [id], onDelete: SetNull)
+
+  kind        PaymentKind   @default(SALE)
+  method      PaymentMethod
+  amount      Decimal  @db.Decimal(10, 2) // always positive; `kind` gives the direction
+  tendered    Decimal? @db.Decimal(10, 2) // cash handed over (for change calc)
+  changeGiven Decimal? @db.Decimal(10, 2)
+  cardLast4   String?
+  reference   String? // card auth ref / external txn id
+  note        String?
+
+  createdAt DateTime @default(now())
+
+  @@index([restaurantId])
+  @@index([orderId])
+  @@index([drawerSessionId])
+}
+
+// A cash drawer session: opened with a float, closed with a counted total and
+// the variance against the expected cash. Cascade-deletes with the restaurant.
+model DrawerSession {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  openedById   String? // user id who opened it (no FK so staff rows can be removed freely)
+
+  status       DrawerStatus @default(OPEN)
+  openingFloat Decimal      @default(0) @db.Decimal(10, 2)
+  expectedCash Decimal?     @db.Decimal(10, 2) // computed at close
+  countedCash  Decimal?     @db.Decimal(10, 2) // physically counted at close
+  variance     Decimal?     @db.Decimal(10, 2) // countedCash - expectedCash
+  note         String?
+
+  openedAt DateTime  @default(now())
+  closedAt DateTime?
+
+  movements DrawerMovement[]
+  payments  Payment[]
+
+  @@index([restaurantId, status])
+}
+
+// An individual cash movement within a drawer session. amount is signed:
+// positive = cash in, negative = cash out. Cascade-deletes with its session.
+model DrawerMovement {
+  id              String        @id @default(cuid())
+  restaurantId    String
+  drawerSessionId String
+  drawerSession   DrawerSession @relation(fields: [drawerSessionId], references: [id], onDelete: Cascade)
+
+  type    DrawerMovementType
+  amount  Decimal @db.Decimal(10, 2) // signed: + in, - out
+  reason  String?
+  orderId String? // linked order for SALE / REFUND movements
+
+  createdAt DateTime @default(now())
+
+  @@index([drawerSessionId])
+  @@index([restaurantId])
+}
+
+// ---------------------------------------------------------------------------
+// Staff management — scheduled shifts & attendance (clock in/out)
+// ---------------------------------------------------------------------------
+
+// A scheduled shift assigned to a staff member. Cascade-deletes with the
+// restaurant or the user.
+model StaffShift {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  startAt  DateTime
+  endAt    DateTime
+  position String? // optional label, e.g. "Front counter"
+  note     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([restaurantId, startAt])
+  @@index([userId])
+}
+
+// A clock-in/clock-out attendance record. An open record (clockOutAt null) means
+// the staff member is currently clocked in. workedMins is filled at clock-out.
+model AttendanceRecord {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  clockInAt  DateTime  @default(now())
+  clockOutAt DateTime?
+  workedMins Int?
+  note       String?
+
+  createdAt DateTime @default(now())
+
+  @@index([restaurantId, clockInAt])
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Customer loyalty — points, cashback, VIP tiers, birthday offers
+// ---------------------------------------------------------------------------
+
+// Per-restaurant loyalty configuration (one row per tenant). VIP tiers are
+// stored as JSON: [{ name, minLifetimePoints, multiplier }].
+model LoyaltyProgram {
+  id           String     @id @default(cuid())
+  restaurantId String     @unique
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  isActive            Boolean @default(true)
+  pointsPerCurrency   Decimal @default(1) @db.Decimal(10, 2) // points earned per 1 unit spent
+  pointValue          Decimal @default(0.01) @db.Decimal(10, 4) // redemption value of 1 point
+  minRedeemPoints     Int     @default(100)
+  cashbackPercent     Decimal @default(0) @db.Decimal(5, 2)
+  birthdayBonusPoints Int     @default(0)
+  tiers               Json? // VIP levels; defaults applied in code when null
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Append-only loyalty ledger. `points` and `amount` (cashback) are signed.
+// The unique [orderId, type] makes per-order EARN/CASHBACK accrual idempotent.
+model LoyaltyTransaction {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  customerId   String
+  customer     Customer   @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  type    LoyaltyTxnType
+  points  Int     @default(0) // signed: + earned, - redeemed
+  amount  Decimal @default(0) @db.Decimal(10, 2) // cashback currency, signed
+  orderId String?
+  note    String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([orderId, type])
+  @@index([restaurantId, customerId])
+  @@index([restaurantId, createdAt])
 }
 
 // ---------------------------------------------------------------------------
@@ -603,11 +851,17 @@ model Coupon {
   endsAt       DateTime?
   isActive     Boolean    @default(true)
 
+  // Loyalty-issued coupons (redeemed points / cashback / birthday) record who
+  // they belong to and where they came from. Plain coupons leave these null.
+  customerId String?
+  source     String? // "LOYALTY" | "CASHBACK" | "BIRTHDAY" | null (manual)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([restaurantId, code])
   @@index([restaurantId])
+  @@index([restaurantId, customerId])
 }
 
 // ---------------------------------------------------------------------------
@@ -714,6 +968,7 @@ model ApiKey {
 
   scopes          String[] @default([])
   rateLimitPerMin Int      @default(60)
+  ipAllowlist     String[] @default([]) // empty = any IP; else exact IPs / CIDRs
 
   isActive   Boolean   @default(true)
   lastUsedAt DateTime?
@@ -740,6 +995,115 @@ model ApiRateWindow {
 
   @@unique([apiKeyId, windowStart])
   @@index([apiKeyId])
+}
+
+// A logged-in mobile device. One row per device session: it holds the hashed
+// refresh token (mobile auth) and the push token (push notifications). Logging
+// out revokes the row. Cascade-deletes with the restaurant or the user.
+model MobileDevice {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  platform         MobilePlatform @default(ANDROID)
+  deviceName       String?
+  pushToken        String? // FCM / Expo / APNs token, null until registered
+  refreshTokenHash String         @unique // sha256(refresh token)
+
+  lastSeenAt DateTime?
+  expiresAt  DateTime // refresh-token expiry
+  revokedAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([restaurantId])
+  @@index([userId])
+  @@index([pushToken])
+}
+
+// ---------------------------------------------------------------------------
+// Security — passkeys, audit logs, login history, generic rate limiting
+// ---------------------------------------------------------------------------
+
+// A registered WebAuthn credential (passkey) for a staff user. Cascade-deletes
+// with the user. The public key is stored; the private key never leaves the
+// authenticator.
+model Passkey {
+  id           String @id @default(cuid())
+  userId       String
+  user         User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  restaurantId String
+
+  credentialId String   @unique // base64url credential id
+  publicKey    String // base64url raw EC point (P-256) / SPKI
+  counter      Int      @default(0)
+  transports   String[] @default([])
+  label        String?
+
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+
+  @@index([userId])
+}
+
+// Append-only audit trail of security-relevant actions. Cascade-deletes with the
+// restaurant; the actor is stored as a snapshot so the record survives user
+// deletion.
+model AuditLog {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  actorUserId String?
+  actorEmail  String?
+  action      String // e.g. "2fa.enable", "session.revoke", "staff.delete"
+  targetType  String?
+  targetId    String?
+  ip          String?
+  userAgent   String?
+  metadata    Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([restaurantId, createdAt])
+  @@index([restaurantId, action])
+}
+
+// Login attempts (success + failure) for the login-history view + anomaly
+// detection. restaurantId/userId are nullable so failed attempts for unknown
+// emails are still recorded.
+model LoginEvent {
+  id           String      @id @default(cuid())
+  restaurantId String?
+  restaurant   Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  userId       String?
+
+  email     String
+  method    String // "password" | "mobile" | "totp" | "passkey"
+  success   Boolean
+  reason    String?
+  ip        String?
+  userAgent String?
+
+  createdAt DateTime @default(now())
+
+  @@index([restaurantId, createdAt])
+  @@index([userId, createdAt])
+}
+
+// Generic fixed-window rate-limit counter, keyed by an arbitrary bucket (e.g.
+// "login:ip:1.2.3.4"). Not tied to API keys — used for login throttling etc.
+model SecurityRateWindow {
+  id          String @id @default(cuid())
+  bucket      String
+  windowStart Int // epoch-minute bucket
+  count       Int    @default(0)
+
+  @@unique([bucket, windowStart])
+  @@index([bucket])
 }
 
 // ===========================================================================

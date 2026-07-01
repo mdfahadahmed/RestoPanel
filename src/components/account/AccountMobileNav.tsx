@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ACCOUNT_NAV } from "./nav";
+import { ACCOUNT_SECTIONS } from "./nav";
 
 function isActive(pathname: string, href: string) {
   return href === "/account" ? pathname === "/account" : pathname.startsWith(href);
@@ -51,32 +51,41 @@ export function AccountMobileNav({ unread = 0 }: { unread?: number }) {
               </button>
             </div>
 
-            <nav className="space-y-1">
-              {ACCOUNT_NAV.map(({ label, href, icon: Icon }) => {
-                const active = isActive(pathname, href);
-                return (
-                  <Link
-                    key={href}
-                    href={href}
-                    onClick={() => setOpen(false)}
-                    aria-current={active ? "page" : undefined}
-                    className={cn(
-                      "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition",
-                      active
-                        ? "bg-ink-800 text-fog-100"
-                        : "text-fog-400 hover:bg-ink-800/60 hover:text-fog-200"
-                    )}
-                  >
-                    <Icon className="h-4 w-4" />
-                    <span className="flex-1">{label}</span>
-                    {href === "/account/notifications" && unread > 0 && (
-                      <span className="grid h-5 min-w-5 place-items-center rounded-full bg-violet-500 px-1 text-[11px] font-semibold text-white">
-                        {unread > 9 ? "9+" : unread}
-                      </span>
-                    )}
-                  </Link>
-                );
-              })}
+            <nav className="max-h-[calc(100dvh-6rem)] space-y-4 overflow-y-auto">
+              {ACCOUNT_SECTIONS.map((section) => (
+                <div key={section.title}>
+                  <p className="px-3 pb-1 text-[11px] font-medium uppercase tracking-wider text-fog-600">
+                    {section.title}
+                  </p>
+                  <div className="space-y-1">
+                    {section.items.map(({ label, href, icon: Icon }) => {
+                      const active = isActive(pathname, href);
+                      return (
+                        <Link
+                          key={href}
+                          href={href}
+                          onClick={() => setOpen(false)}
+                          aria-current={active ? "page" : undefined}
+                          className={cn(
+                            "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition",
+                            active
+                              ? "bg-ink-800 text-fog-100"
+                              : "text-fog-400 hover:bg-ink-800/60 hover:text-fog-200"
+                          )}
+                        >
+                          <Icon className="h-4 w-4" />
+                          <span className="flex-1">{label}</span>
+                          {href === "/account/notifications" && unread > 0 && (
+                            <span className="grid h-5 min-w-5 place-items-center rounded-full bg-violet-500 px-1 text-[11px] font-semibold text-white">
+                              {unread > 9 ? "9+" : unread}
+                            </span>
+                          )}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </nav>
           </div>
         </div>

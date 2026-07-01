@@ -12,6 +12,7 @@ import { notifyReservation } from "@/lib/notifications/notify";
 import { createReservation, getDayAvailability } from "@/lib/reservations/bookings";
 import { getCustomerSession } from "@/lib/account/context";
 import { notifyAccountOrderPlaced } from "@/lib/account/notify";
+import { settlePaymentByIntent } from "@/lib/payments/service";
 
 // Public checkout — NO session. The restaurant is resolved from the public slug
 // and every write is scoped to that restaurantId. Pricing/tax/delivery are taken
@@ -19,12 +20,13 @@ import { notifyAccountOrderPlaced } from "@/lib/account/notify";
 export async function placeOrderPublic(
   slug: string,
   input: unknown
-): Promise<ActionResult<{ orderNumber: string }>> {
+): Promise<ActionResult<{ orderNumber: string; orderId: string; online: boolean }>> {
   const restaurant = await prisma.restaurant.findUnique({
     where: { slug },
     select: {
       id: true, taxRate: true, deliveryFee: true, minimumOrder: true, currencySymbol: true,
       deliveryEnabled: true, pickupEnabled: true, dineInEnabled: true, temporaryClosure: true,
+      onlinePaymentsEnabled: true, codEnabled: true,
     },
   });
   if (!restaurant) return actionError("Restaurant not found");
@@ -47,6 +49,15 @@ export async function placeOrderPublic(
     (data.type === "PICKUP" && restaurant.pickupEnabled) ||
     (data.type === "DINE_IN" && restaurant.dineInEnabled);
   if (!typeEnabled) return actionError("That order type isn't available right now");
+
+  // Respect the restaurant's payment settings.
+  const wantsOnline = data.paymentMethod !== "CASH";
+  if (wantsOnline && !restaurant.onlinePaymentsEnabled) {
+    return actionError("Online payment isn't available for this restaurant right now");
+  }
+  if (!wantsOnline && !restaurant.codEnabled) {
+    return actionError("Cash on delivery isn't available for this restaurant right now");
+  }
 
   const itemResult = await buildOrderItems(restaurant.id, data.items);
   if (!itemResult.ok) return actionError(itemResult.error);
@@ -158,7 +169,46 @@ export async function placeOrderPublic(
     await notifyAccountOrderPlaced(createdOrderId).catch(() => undefined);
   }
 
-  return actionOk({ orderNumber });
+  // `online` tells the client to route to the payment step; COD orders are done.
+  return actionOk({ orderNumber, orderId: createdOrderId, online: wantsOnline });
+}
+
+/**
+ * Confirm an in-progress online payment for a storefront order. Used by the pay
+ * page's mock/test flow (real Stripe payments are confirmed with Stripe.js and
+ * settled by the webhook, so this only acts on the deterministic mock provider).
+ * Scoped by the public slug — an order must belong to the given restaurant.
+ */
+export async function confirmMockPaymentPublic(
+  slug: string,
+  orderId: string,
+  outcome: "succeed" | "fail" = "succeed"
+): Promise<ActionResult<{ status: string }>> {
+  const restaurant = await prisma.restaurant.findUnique({ where: { slug }, select: { id: true } });
+  if (!restaurant) return actionError("Restaurant not found");
+
+  const payment = await prisma.payment.findFirst({
+    where: {
+      orderId,
+      order: { restaurantId: restaurant.id },
+      kind: "SALE",
+      status: "PENDING",
+      provider: "mock",
+    },
+    orderBy: { createdAt: "desc" },
+    select: { intentId: true },
+  });
+  if (!payment?.intentId) {
+    return actionError("No pending test payment for this order");
+  }
+
+  const res = await settlePaymentByIntent(
+    payment.intentId,
+    outcome === "fail" ? "failed" : "succeeded",
+    outcome === "fail" ? { failureReason: "Test payment declined" } : { cardLast4: "4242" }
+  );
+  if (!res.ok) return actionError("Could not confirm the payment");
+  return actionOk({ status: outcome === "fail" ? "FAILED" : "SUCCEEDED" });
 }
 
 // Public coupon preview for the checkout — re-validated server-side at checkout.

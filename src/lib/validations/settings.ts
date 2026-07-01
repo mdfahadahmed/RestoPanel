@@ -72,6 +72,11 @@ export const updateSettingsSchema = z.object({
   taxName: z.string().trim().min(1).max(40).default("Tax"),
   taxRate: z.coerce.number().min(0, "0–100").max(100, "0–100").default(0),
 
+  // Payments
+  onlinePaymentsEnabled: z.boolean().default(false),
+  codEnabled: z.boolean().default(true),
+  paymentProvider: z.enum(["stripe", "paypal"]).default("stripe"),
+
   // Localization
   currency: z.string().trim().min(2).max(8).default("GBP"),
   currencySymbol: z.string().trim().min(1).max(4).default("£"),

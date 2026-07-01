@@ -74,6 +74,10 @@ export async function updateSettings(input: unknown): Promise<ActionResult<{ slu
         taxName: d.taxName,
         taxRate: new Prisma.Decimal(d.taxRate),
 
+        onlinePaymentsEnabled: d.onlinePaymentsEnabled,
+        codEnabled: d.codEnabled,
+        paymentProvider: d.paymentProvider,
+
         currency: d.currency,
         currencySymbol: d.currencySymbol,
         timezone: d.timezone,

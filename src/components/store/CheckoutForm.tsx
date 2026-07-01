@@ -17,6 +17,8 @@ export interface CheckoutSettings {
   deliveryEnabled: boolean;
   pickupEnabled: boolean;
   dineInEnabled: boolean;
+  onlinePaymentsEnabled: boolean;
+  codEnabled: boolean;
 }
 
 type OrderType = "DELIVERY" | "PICKUP" | "DINE_IN";
@@ -34,13 +36,25 @@ export function CheckoutForm({ slug, settings }: { slug: string; settings: Check
     return opts;
   }, [settings]);
 
+  const paymentOptions = useMemo(() => {
+    const opts: { value: "CASH" | "CARD" | "ONLINE"; label: string }[] = [];
+    if (settings.codEnabled) opts.push({ value: "CASH", label: "Cash" });
+    if (settings.onlinePaymentsEnabled) {
+      opts.push({ value: "CARD", label: "Card" });
+      opts.push({ value: "ONLINE", label: "Online" });
+    }
+    return opts.length > 0 ? opts : [{ value: "CASH" as const, label: "Cash" }];
+  }, [settings]);
+
   const [type, setType] = useState<OrderType>(typeOptions[0]?.value ?? "PICKUP");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [address, setAddress] = useState("");
   const [notes, setNotes] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState<"CASH" | "CARD" | "ONLINE">("CASH");
+  const [paymentMethod, setPaymentMethod] = useState<"CASH" | "CARD" | "ONLINE">(
+    paymentOptions[0].value
+  );
   const [couponInput, setCouponInput] = useState("");
   const [coupon, setCoupon] = useState<{ code: string; discount: number } | null>(null);
   const [couponPending, setCouponPending] = useState(false);
@@ -101,9 +115,14 @@ export function CheckoutForm({ slug, settings }: { slug: string; settings: Check
         toast.error(res.error);
         return;
       }
-      toast.success("Order placed!");
       clear();
-      router.push(`/r/${slug}/track/${res.data!.orderNumber}`);
+      if (res.data!.online) {
+        // Online payment — continue to the secure payment step.
+        router.push(`/r/${slug}/pay/${res.data!.orderId}`);
+      } else {
+        toast.success("Order placed!");
+        router.push(`/r/${slug}/track/${res.data!.orderNumber}`);
+      }
     } catch {
       toast.error("Something went wrong. Please try again.");
     } finally {
@@ -183,23 +202,28 @@ export function CheckoutForm({ slug, settings }: { slug: string; settings: Check
 
         {/* Payment */}
         <Section title="Payment">
-          <div className="grid grid-cols-3 gap-2">
-            {(["CASH", "CARD", "ONLINE"] as const).map((m) => (
+          <div
+            className="grid gap-2"
+            style={{ gridTemplateColumns: `repeat(${paymentOptions.length}, minmax(0, 1fr))` }}
+          >
+            {paymentOptions.map((m) => (
               <button
                 type="button"
-                key={m}
-                onClick={() => setPaymentMethod(m)}
+                key={m.value}
+                onClick={() => setPaymentMethod(m.value)}
                 className={cn(
                   "rounded-xl border px-3 py-3 text-sm transition",
-                  paymentMethod === m ? "border-gold-400/60 bg-gold-400/10 text-gold-100" : "border-line bg-ink-900 text-fog-300 hover:text-fog-100"
+                  paymentMethod === m.value ? "border-gold-400/60 bg-gold-400/10 text-gold-100" : "border-line bg-ink-900 text-fog-300 hover:text-fog-100"
                 )}
               >
-                {m === "CASH" ? "Cash" : m === "CARD" ? "Card" : "Online"}
+                {m.label}
               </button>
             ))}
           </div>
           <p className="mt-2 text-xs text-fog-500">
-            {paymentMethod === "ONLINE" ? "Online payment is coming soon — you'll pay on collection/delivery for now." : "Pay on collection or delivery."}
+            {paymentMethod === "CASH"
+              ? "Pay on collection or delivery."
+              : "You'll complete a secure payment on the next step."}
           </p>
         </Section>
       </div>

@@ -9,6 +9,7 @@ import { buildOrderItems, nextOrderNumber } from "@/lib/orders/build";
 import { notifyOrderStatus } from "@/lib/notifications/notify";
 import { notifyAccountOrderStatus } from "@/lib/account/notify";
 import { accrueForOrder } from "@/lib/loyalty/engine";
+import { refundOrderPayment, markOrderPaid } from "@/lib/payments/service";
 import {
   createOrderSchema,
   updateStatusSchema,
@@ -176,6 +177,35 @@ export async function updatePayment(input: unknown): Promise<ActionResult> {
   revalidatePath("/dashboard/orders");
   revalidatePath(`/dashboard/orders/${id}`);
   return actionOk();
+}
+
+export async function refundOrder(input: {
+  id: string;
+  amount?: number;
+  reason?: string;
+}): Promise<ActionResult<{ refunded: number }>> {
+  const { restaurantId } = await requireTenant();
+  if (!input?.id) return actionError("Invalid request");
+  const result = await refundOrderPayment(restaurantId, input.id, {
+    amount: input.amount,
+    reason: input.reason,
+  });
+  if (result.ok) {
+    revalidatePath("/dashboard/orders");
+    revalidatePath(`/dashboard/orders/${input.id}`);
+  }
+  return result;
+}
+
+export async function markOrderPaidAction(input: { id: string }): Promise<ActionResult> {
+  const { restaurantId } = await requireTenant();
+  if (!input?.id) return actionError("Invalid request");
+  const result = await markOrderPaid(restaurantId, input.id);
+  if (result.ok) {
+    revalidatePath("/dashboard/orders");
+    revalidatePath(`/dashboard/orders/${input.id}`);
+  }
+  return result;
 }
 
 export async function updateRestaurantNotes(input: unknown): Promise<ActionResult> {

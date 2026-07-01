@@ -54,6 +54,9 @@ export interface SettingsInitial {
   dineInEnabled: boolean;
   taxName: string;
   taxRate: string;
+  onlinePaymentsEnabled: boolean;
+  codEnabled: boolean;
+  paymentProvider: "stripe" | "paypal";
   currency: string;
   currencySymbol: string;
   timezone: string;
@@ -143,6 +146,9 @@ export function SettingsForm({ initial }: { initial: SettingsInitial }) {
       dineInEnabled: form.dineInEnabled,
       taxName: form.taxName || "Tax",
       taxRate: form.taxRate === "" ? 0 : Number(form.taxRate),
+      onlinePaymentsEnabled: form.onlinePaymentsEnabled,
+      codEnabled: form.codEnabled,
+      paymentProvider: form.paymentProvider,
       currency: form.currency,
       currencySymbol: form.currencySymbol,
       timezone: form.timezone,
@@ -314,6 +320,43 @@ export function SettingsForm({ initial }: { initial: SettingsInitial }) {
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Tax name" error={err("taxName")}><Input value={form.taxName} onChange={(e) => set("taxName", e.target.value)} placeholder="VAT" /></Field>
                 <Field label="Tax percentage (%)" error={err("taxRate")}><Input type="number" min="0" max="100" step="0.01" value={form.taxRate} onChange={(e) => set("taxRate", e.target.value)} /></Field>
+              </div>
+
+              <div className="space-y-4 border-t border-line pt-4">
+                <p className="text-sm font-semibold text-fog-100">Payments</p>
+                <ToggleRow
+                  label="Cash on delivery"
+                  hint="Let customers pay on collection or delivery"
+                  checked={form.codEnabled}
+                  onChange={(v) => set("codEnabled", v)}
+                />
+                <ToggleRow
+                  label="Online payments"
+                  hint="Accept card / online payment at checkout"
+                  checked={form.onlinePaymentsEnabled}
+                  onChange={(v) => set("onlinePaymentsEnabled", v)}
+                />
+                {form.onlinePaymentsEnabled && (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label>Payment provider</Label>
+                      <Select
+                        value={form.paymentProvider}
+                        onValueChange={(v) => set("paymentProvider", v as "stripe" | "paypal")}
+                      >
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="stripe">Stripe</SelectItem>
+                          <SelectItem value="paypal">PayPal (coming soon)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                )}
+                <p className="text-xs text-fog-500">
+                  Online payments use the platform&apos;s Stripe configuration. Until
+                  Stripe is connected, online checkout runs in secure test mode.
+                </p>
               </div>
             </CardContent>
           </Card>

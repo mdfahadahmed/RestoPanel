@@ -72,6 +72,36 @@ export async function notifyAccountOrderStatus(
   });
 }
 
+/** Notify an account that payment for one of its orders was received. */
+export async function notifyAccountPaymentReceived(orderId: string): Promise<void> {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: {
+      orderNumber: true,
+      total: true,
+      restaurantId: true,
+      restaurant: { select: { name: true, currencySymbol: true } },
+      customer: { select: { accountId: true } },
+    },
+  });
+  const accountId = order?.customer?.accountId;
+  if (!order || !accountId) return;
+
+  await prisma.customerNotification.create({
+    data: {
+      accountId,
+      type: "ORDER_UPDATE",
+      title: "Payment received",
+      body: `Payment of ${order.restaurant.currencySymbol}${Number(order.total).toFixed(2)} for order #${order.orderNumber} was received. Thank you!`,
+      orderId,
+      orderNumber: order.orderNumber,
+      restaurantId: order.restaurantId,
+      restaurantName: order.restaurant.name,
+      link: `/account/orders/${orderId}`,
+    },
+  });
+}
+
 /** Notify an account that one of its orders was just placed. */
 export async function notifyAccountOrderPlaced(orderId: string): Promise<void> {
   const order = await prisma.order.findUnique({

@@ -215,7 +215,8 @@ function Invoice({
         </div>
         <div className="text-right">
           <h2 className="text-lg font-bold uppercase tracking-wide">Invoice</h2>
-          <p className="text-sm">#{order.orderNumber}</p>
+          <p className="text-sm">{order.invoiceNumber ?? `#${order.orderNumber}`}</p>
+          <p className="text-xs text-neutral-600">Order #{order.orderNumber}</p>
           <p className="text-xs text-neutral-600">{formatDate(order.createdAt)}</p>
         </div>
       </div>

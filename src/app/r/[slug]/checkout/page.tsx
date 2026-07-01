@@ -15,6 +15,8 @@ export default async function CheckoutPage({ params }: { params: Promise<{ slug:
     deliveryEnabled: restaurant.deliveryEnabled,
     pickupEnabled: restaurant.pickupEnabled,
     dineInEnabled: restaurant.dineInEnabled,
+    onlinePaymentsEnabled: restaurant.onlinePaymentsEnabled,
+    codEnabled: restaurant.codEnabled,
   };
 
   return (

@@ -226,7 +226,21 @@ export default async function AccountOrderDetailPage({
             <p className="text-xs text-fog-500">Status</p>
             <PaymentStatusBadge status={order.paymentStatus as PaymentStatus} />
           </div>
+          {order.invoiceNumber && (
+            <div>
+              <p className="text-xs text-fog-500">Invoice</p>
+              <p className="text-fog-200">{order.invoiceNumber}</p>
+            </div>
+          )}
         </div>
+        {order.paymentStatus === "UNPAID" && order.paymentMethod !== "CASH" && (
+          <Link
+            href={`/r/${order.restaurant.slug}/pay/${order.id}`}
+            className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-white px-4 py-2 text-sm font-semibold text-ink-950 transition hover:bg-fog-100"
+          >
+            Complete payment
+          </Link>
+        )}
       </section>
     </div>
   );

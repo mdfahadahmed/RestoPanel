@@ -180,6 +180,17 @@ enum PaymentKind {
   REFUND
 }
 
+// Lifecycle of a single payment transaction. POS/cash rows are SUCCEEDED on
+// creation; online (Stripe/PayPal) rows start PENDING and are settled by the
+// provider webhook to SUCCEEDED or FAILED. A refund SALE→ REFUNDED is tracked by
+// the order's paymentStatus; the REFUND ledger row itself is SUCCEEDED.
+enum PaymentTxnStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+}
+
 enum DrawerStatus {
   OPEN
   CLOSED
@@ -269,6 +280,11 @@ model Restaurant {
   deliveryFee     Decimal @default(0) @db.Decimal(10, 2)
   taxName         String  @default("Tax")
   taxRate         Decimal @default(0) @db.Decimal(5, 2) // percentage applied to order subtotal
+
+  // Payment acceptance (customer storefront checkout).
+  onlinePaymentsEnabled Boolean @default(false) // offer card/online payment at checkout
+  codEnabled            Boolean @default(true) // offer cash on delivery / pay on collection
+  paymentProvider       String  @default("stripe") // online provider: "stripe" | "paypal"
 
   currency       String @default("GBP")
   currencySymbol String @default("£")
@@ -639,6 +655,10 @@ model Order {
 
   couponCode String? // snapshot of an applied coupon code
 
+  // Invoice: allocated once the order is paid (or on demand). Unique per tenant.
+  invoiceNumber String?
+  invoicedAt    DateTime?
+
   notes           String? // customer-facing note (delivery instructions, etc.)
   restaurantNotes String? // internal staff note, never shown to the customer
 
@@ -652,6 +672,7 @@ model Order {
   updatedAt DateTime     @updatedAt
 
   @@unique([restaurantId, orderNumber])
+  @@unique([restaurantId, invoiceNumber])
   @@index([restaurantId, status])
   @@index([restaurantId, createdAt])
   @@index([restaurantId, paymentStatus])
@@ -713,11 +734,19 @@ model Payment {
   reference   String? // card auth ref / external txn id
   note        String?
 
+  // Online payment gateway fields (null for cash/POS rows).
+  provider      String? // "stripe" | "paypal" | "cod" | "mock"
+  status        PaymentTxnStatus @default(SUCCEEDED)
+  intentId      String? // provider payment-intent id (pi_...), used to settle/refund
+  failureReason String? // populated when status = FAILED
+
   createdAt DateTime @default(now())
 
   @@index([restaurantId])
   @@index([orderId])
   @@index([drawerSessionId])
+  @@index([restaurantId, status])
+  @@index([intentId])
 }
 
 // A cash drawer session: opened with a float, closed with a counted total and

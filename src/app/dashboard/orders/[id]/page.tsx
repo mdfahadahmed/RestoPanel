@@ -12,6 +12,8 @@ import { loadOrder, parseItemOptions } from "../order-data";
 import { OrderStatusControl } from "../OrderStatusControl";
 import { OrderPaymentControl, OrderNotesEditor } from "../OrderManageControls";
 import { OrderPrintMenu } from "../OrderPrintMenu";
+import { OrderPaymentsPanel, type PaymentTxn } from "../OrderPaymentsPanel";
+import { getOrderPayments } from "@/lib/payments/service";
 import {
   ORDER_STATUS_META,
   PAYMENT_STATUS_META,
@@ -26,6 +28,19 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   const { id } = await params;
   const order = await loadOrder(restaurantId, id);
   if (!order) notFound();
+
+  const paymentRows = await getOrderPayments(restaurantId, order.id);
+  const transactions: PaymentTxn[] = paymentRows.map((p) => ({
+    id: p.id,
+    kind: p.kind,
+    method: p.method,
+    provider: p.provider,
+    status: p.status,
+    amount: Number(p.amount),
+    cardLast4: p.cardLast4,
+    failureReason: p.failureReason,
+    createdAt: p.createdAt.toISOString(),
+  }));
 
   const statusMeta = ORDER_STATUS_META[order.status as OrderStatus];
 
@@ -148,12 +163,19 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             <CardHeader>
               <CardTitle>Payment</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
               <OrderPaymentControl
                 id={order.id}
                 paymentStatus={order.paymentStatus as PaymentStatus}
                 paymentMethod={order.paymentMethod as PaymentMethod}
               />
+              <div className="border-t border-line pt-4">
+                <OrderPaymentsPanel
+                  id={order.id}
+                  invoiceNumber={order.invoiceNumber}
+                  transactions={transactions}
+                />
+              </div>
             </CardContent>
           </Card>
 

@@ -97,10 +97,14 @@ export async function findProductByCode(restaurantId: string, code: string) {
   });
 }
 
-/** Net amount settled on an order so far: paid sales minus refunds. */
+/**
+ * Net amount settled on an order so far: succeeded sales minus refunds. Only
+ * SUCCEEDED rows count — an online payment that is still PENDING or has FAILED
+ * must never be treated as money received.
+ */
 export async function netPaid(restaurantId: string, orderId: string): Promise<number> {
   const rows = await prisma.payment.findMany({
-    where: { restaurantId, orderId },
+    where: { restaurantId, orderId, status: "SUCCEEDED" },
     select: { kind: true, amount: true },
   });
   const total = rows.reduce(

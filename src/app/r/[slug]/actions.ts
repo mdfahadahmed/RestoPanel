@@ -10,6 +10,8 @@ import { createReviewSchema } from "@/lib/validations/review";
 import { evaluateCoupon } from "@/lib/coupons/evaluate";
 import { notifyReservation } from "@/lib/notifications/notify";
 import { createReservation, getDayAvailability } from "@/lib/reservations/bookings";
+import { getCustomerSession } from "@/lib/account/context";
+import { notifyAccountOrderPlaced } from "@/lib/account/notify";
 
 // Public checkout — NO session. The restaurant is resolved from the public slug
 // and every write is scoped to that restaurantId. Pricing/tax/delivery are taken
@@ -73,6 +75,18 @@ export async function placeOrderPublic(
   const deliveryFee = data.type === "DELIVERY" ? Number(restaurant.deliveryFee) : 0;
   const totals = computeTotals(itemResult.subtotal, discount, taxAmount, deliveryFee);
 
+  // If the shopper is signed in to their customer account (/account), link this
+  // restaurant's Customer profile to it so the order shows in their history.
+  // Guarded: outside a request context (e.g. tests) reading cookies throws — we
+  // simply treat that as "no account".
+  let accountId: string | null = null;
+  try {
+    const session = await getCustomerSession();
+    accountId = session?.accountId ?? null;
+  } catch {
+    accountId = null;
+  }
+
   // Link or create the customer by phone (tenant-scoped).
   const customer = await prisma.customer.upsert({
     where: { restaurantId_phone: { restaurantId: restaurant.id, phone: data.customerPhone } },
@@ -80,6 +94,7 @@ export async function placeOrderPublic(
       name: data.customerName || undefined,
       email: data.customerEmail || undefined,
       address: data.address || undefined,
+      ...(accountId ? { accountId } : {}),
     },
     create: {
       restaurantId: restaurant.id,
@@ -87,6 +102,7 @@ export async function placeOrderPublic(
       name: data.customerName,
       email: data.customerEmail || null,
       address: data.address || null,
+      accountId,
     },
   });
 
@@ -124,14 +140,22 @@ export async function placeOrderPublic(
     events: { create: { status: "PENDING" as const, note: "Order placed online" } },
   };
 
+  let createdOrderId: string;
   if (appliedCouponId) {
     // Create the order and bump the coupon's usage atomically.
-    await prisma.$transaction([
-      prisma.order.create({ data: orderData }),
+    const [created] = await prisma.$transaction([
+      prisma.order.create({ data: orderData, select: { id: true } }),
       prisma.coupon.update({ where: { id: appliedCouponId }, data: { usedCount: { increment: 1 } } }),
     ]);
+    createdOrderId = created.id;
   } else {
-    await prisma.order.create({ data: orderData });
+    const created = await prisma.order.create({ data: orderData, select: { id: true } });
+    createdOrderId = created.id;
+  }
+
+  // Notify the customer account panel that the order was placed (best-effort).
+  if (accountId) {
+    await notifyAccountOrderPlaced(createdOrderId).catch(() => undefined);
   }
 
   return actionOk({ orderNumber });

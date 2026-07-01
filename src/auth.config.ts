@@ -1,6 +1,7 @@
 import type { NextAuthConfig } from "next-auth";
 import type { Role } from "@prisma/client";
 import { ADMIN_COOKIE, verifyAdminToken } from "./lib/admin/session";
+import { CUSTOMER_COOKIE, verifyCustomerToken } from "./lib/account/session";
 
 // Edge-safe Auth.js configuration. Intentionally contains NO database or
 // bcrypt imports so it can run inside middleware. The Credentials provider
@@ -34,6 +35,28 @@ export const authConfig = {
         if (!adminToken) {
           const url = new URL("/admin/login", nextUrl);
           url.searchParams.set("next", pathname);
+          return Response.redirect(url);
+        }
+        return true;
+      }
+
+      // --- Customer account panel -------------------------------------------
+      // Gated EXCLUSIVELY by the standalone customer session cookie — separate
+      // from both the tenant owner's NextAuth session and the admin session.
+      if (pathname.startsWith("/account")) {
+        const customerToken = await verifyCustomerToken(
+          cookies.get(CUSTOMER_COOKIE)?.value
+        );
+        const isCustomerAuthPage =
+          pathname === "/account/login" || pathname === "/account/register";
+
+        if (isCustomerAuthPage) {
+          if (customerToken) return Response.redirect(new URL("/account", nextUrl));
+          return true;
+        }
+        if (!customerToken) {
+          const url = new URL("/account/login", nextUrl);
+          if (pathname !== "/account") url.searchParams.set("next", pathname);
           return Response.redirect(url);
         }
         return true;

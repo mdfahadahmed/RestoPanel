@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { ShoppingBag, Menu as MenuIcon, X } from "lucide-react";
+import { ShoppingBag, Menu as MenuIcon, X, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCart } from "./cart/CartProvider";
 
@@ -61,6 +61,13 @@ export function StoreHeader({ slug, name, logoUrl }: StoreHeaderProps) {
         </nav>
 
         <div className="flex items-center gap-1">
+          <Link
+            href="/account"
+            className="grid h-10 w-10 place-items-center rounded-full border border-line bg-ink-900 text-fog-200 transition hover:text-fog-50"
+            aria-label="My account"
+          >
+            <User className="h-4.5 w-4.5" />
+          </Link>
           <Link
             href={`${base}/cart`}
             className="relative grid h-10 w-10 place-items-center rounded-full border border-line bg-ink-900 text-fog-200 transition hover:text-fog-50"

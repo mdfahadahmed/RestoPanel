@@ -10,7 +10,7 @@ generator client {
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL") // pooled (PgBouncer) endpoint for the app
-  directUrl = env("DIRECT_URL")   // direct endpoint for migrations
+  directUrl = env("DIRECT_URL") // direct endpoint for migrations
 }
 
 // ---------------------------------------------------------------------------
@@ -199,6 +199,13 @@ enum CustomerStatus {
   BLOCKED
 }
 
+// Notifications shown inside the customer account panel (/account).
+enum CustomerNotificationType {
+  ORDER_UPDATE
+  PROMOTION
+  RESTAURANT_MESSAGE
+}
+
 enum CouponType {
   PERCENTAGE
   FIXED
@@ -230,50 +237,50 @@ enum ProductStatus {
 // Tenant root
 // ---------------------------------------------------------------------------
 model Restaurant {
-  id        String   @id @default(cuid())
-  slug      String   @unique // used for the customer site URL: /r/<slug>
+  id        String @id @default(cuid())
+  slug      String @unique // used for the customer site URL: /r/<slug>
   name      String
   ownerName String
 
   // Contact / settings
-  email          String?
-  phone          String?
-  whatsapp       String?
-  website        String?
-  logoUrl        String?
-  logoKey        String?
-  coverImageUrl  String?
-  coverKey       String?
-  address        String? // composed single-line address (kept for the storefront)
-  street         String?
-  city           String?
-  state          String?
-  postalCode     String?
-  country        String?
-  openingHours   Json? // { mon: { open, close } | null, ... }
-  holidays       Json? // [{ date: "YYYY-MM-DD", name }]
+  email            String?
+  phone            String?
+  whatsapp         String?
+  website          String?
+  logoUrl          String?
+  logoKey          String?
+  coverImageUrl    String?
+  coverKey         String?
+  address          String? // composed single-line address (kept for the storefront)
+  street           String?
+  city             String?
+  state            String?
+  postalCode       String?
+  country          String?
+  openingHours     Json? // { mon: { open, close } | null, ... }
+  holidays         Json? // [{ date: "YYYY-MM-DD", name }]
   temporaryClosure Json? // { enabled, message, until }
 
   deliveryEnabled Boolean @default(true)
-  deliveryRadius  Int?    // in km
+  deliveryRadius  Int? // in km
   minimumOrder    Decimal @default(0) @db.Decimal(10, 2)
   pickupEnabled   Boolean @default(true)
   dineInEnabled   Boolean @default(true)
-  deliveryFee    Decimal @default(0) @db.Decimal(10, 2)
-  taxName        String  @default("Tax")
-  taxRate        Decimal @default(0) @db.Decimal(5, 2) // percentage applied to order subtotal
+  deliveryFee     Decimal @default(0) @db.Decimal(10, 2)
+  taxName         String  @default("Tax")
+  taxRate         Decimal @default(0) @db.Decimal(5, 2) // percentage applied to order subtotal
 
-  currency       String  @default("GBP")
-  currencySymbol String  @default("£")
-  timezone       String  @default("Europe/London")
+  currency       String @default("GBP")
+  currencySymbol String @default("£")
+  timezone       String @default("Europe/London")
 
   // Custom domain (premium): a verified hostname that serves this restaurant's
   // storefront. Unique platform-wide; verified once DNS points at the app.
   customDomain           String?   @unique
   customDomainVerifiedAt DateTime?
 
-  latitude       Float?
-  longitude      Float?
+  latitude         Float?
+  longitude        Float?
   description      String?
   shortDescription String?
 
@@ -287,9 +294,9 @@ model Restaurant {
   ogImageUrl      String?
   ogImageKey      String?
 
-  primaryColor   String  @default("#E8C372")
-  secondaryColor String  @default("#8B5CF6")
-  themePreset    String  @default("midnight")
+  primaryColor   String @default("#E8C372")
+  secondaryColor String @default("#8B5CF6")
+  themePreset    String @default("midnight")
 
   // Platform administration state (managed only from the Super Admin panel).
   status            RestaurantStatus @default(ACTIVE)
@@ -300,18 +307,18 @@ model Restaurant {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  users        User[]
-  categories   Category[]
-  products     Product[]
-  customers    Customer[]
-  orders       Order[]
-  reservations Reservation[]
-  reviews      Review[]
-  coupons      Coupon[]
-  subscription Subscription?
-  invoices     Invoice[]
-  tickets      SupportTicket[]
-  qrCodes      QrCode[]
+  users                 User[]
+  categories            Category[]
+  products              Product[]
+  customers             Customer[]
+  orders                Order[]
+  reservations          Reservation[]
+  reviews               Review[]
+  coupons               Coupon[]
+  subscription          Subscription?
+  invoices              Invoice[]
+  tickets               SupportTicket[]
+  qrCodes               QrCode[]
   notificationTemplates NotificationTemplate[]
   notificationLogs      NotificationLog[]
   apiKeys               ApiKey[]
@@ -334,7 +341,7 @@ model Restaurant {
 // Auth / staff
 // ---------------------------------------------------------------------------
 model User {
-  id           String @id @default(cuid())
+  id           String     @id @default(cuid())
   restaurantId String
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
@@ -368,7 +375,7 @@ model User {
 // Menu
 // ---------------------------------------------------------------------------
 model Category {
-  id           String @id @default(cuid())
+  id           String     @id @default(cuid())
   restaurantId String
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
@@ -386,7 +393,7 @@ model Category {
 }
 
 model Product {
-  id           String @id @default(cuid())
+  id           String     @id @default(cuid())
   restaurantId String
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   categoryId   String?
@@ -398,23 +405,23 @@ model Product {
   shortDescription String?
 
   // Images: ordered array of { url, key }. The first entry is the thumbnail.
-  images       Json     @default("[]")
+  images Json @default("[]")
 
   price        Decimal  @db.Decimal(10, 2)
   comparePrice Decimal? @db.Decimal(10, 2) // optional "was" price shown struck-through
   costPrice    Decimal? @db.Decimal(10, 2) // internal cost, used for margin (never shown to customers)
   discount     Decimal  @default(0) @db.Decimal(10, 2) // percentage off (0–100)
 
-  sku          String?
-  barcode      String?
-  calories     Int?
+  sku           String?
+  barcode       String?
+  calories      Int?
   stockQuantity Int?
-  stockStatus  StockStatus @default(IN_STOCK)
+  stockStatus   StockStatus @default(IN_STOCK)
 
-  status       ProductStatus @default(ACTIVE)
-  isAvailable  Boolean  @default(true)
-  featured     Boolean  @default(false)
-  bestSeller   Boolean  @default(false)
+  status      ProductStatus @default(ACTIVE)
+  isAvailable Boolean       @default(true)
+  featured    Boolean       @default(false)
+  bestSeller  Boolean       @default(false)
 
   prepTimeMins Int?
   ingredients  String[]
@@ -428,6 +435,7 @@ model Product {
   updatedAt DateTime @updatedAt
 
   orderItems OrderItem[]
+  favorites  CustomerFavorite[]
 
   @@unique([restaurantId, slug])
   @@index([restaurantId])
@@ -440,7 +448,7 @@ model Product {
 // Customers & orders
 // ---------------------------------------------------------------------------
 model Customer {
-  id           String @id @default(cuid())
+  id           String     @id @default(cuid())
   restaurantId String
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
@@ -448,6 +456,12 @@ model Customer {
   phone   String
   email   String?
   address String?
+
+  // Optional link to a global customer account (the /account panel). Set when a
+  // signed-in customer orders, or backfilled by matching email at login. Lets one
+  // account aggregate its per-restaurant customer profiles + orders.
+  accountId String?
+  account   CustomerAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
 
   tags   String[]       @default([])
   status CustomerStatus @default(ACTIVE)
@@ -465,13 +479,118 @@ model Customer {
   notes       CustomerNote[]
   reviews     Review[]
   loyaltyTxns LoyaltyTransaction[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
 
   @@unique([restaurantId, phone])
   @@index([restaurantId])
   @@index([restaurantId, status])
   @@index([restaurantId, isMember])
+  @@index([accountId])
+}
+
+// ---------------------------------------------------------------------------
+// Customer accounts (the /account customer order panel)
+// ---------------------------------------------------------------------------
+
+// A global, cross-restaurant customer identity. Completely separate from tenant
+// staff `User`s and from platform `AdminUser`s: customers authenticate via their
+// own signed cookie session (lib/account/session.ts) and can only ever see data
+// scoped to their own `accountId`. A single account links to many per-restaurant
+// `Customer` profiles, aggregating orders, favorites and notifications.
+model CustomerAccount {
+  id           String  @id @default(cuid())
+  email        String  @unique
+  passwordHash String
+  name         String
+  phone        String?
+  avatarUrl    String?
+  avatarKey    String?
+
+  // Preferences
+  language             String  @default("en")
+  theme                String  @default("dark") // "dark" | "light"
+  notifyOrderUpdates   Boolean @default(true)
+  notifyPromotions     Boolean @default(true)
+  notifyRestaurantMsgs Boolean @default(true)
+
+  tokenVersion Int       @default(0) // bump to invalidate all issued sessions
+  lastLoginAt  DateTime?
+
+  customers     Customer[]
+  addresses     CustomerAddress[]
+  favorites     CustomerFavorite[]
+  notifications CustomerNotification[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// A saved delivery address on a customer account. Exactly one may be the default.
+model CustomerAddress {
+  id        String          @id @default(cuid())
+  accountId String
+  account   CustomerAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  label      String  @default("Home")
+  fullName   String?
+  phone      String?
+  line1      String
+  line2      String?
+  city       String
+  state      String?
+  postalCode String?
+  country    String?
+  notes      String?
+  isDefault  Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([accountId])
+}
+
+// A product a customer has favorited (for quick reorder). restaurantId is
+// denormalised so the storefront link can be built without a product join.
+model CustomerFavorite {
+  id           String          @id @default(cuid())
+  accountId    String
+  account      CustomerAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  productId    String
+  product      Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  restaurantId String
+
+  createdAt DateTime @default(now())
+
+  @@unique([accountId, productId])
+  @@index([accountId])
+  @@index([productId])
+}
+
+// An in-app notification shown in the customer account panel. Order updates are
+// generated when the restaurant changes an order's status.
+model CustomerNotification {
+  id        String          @id @default(cuid())
+  accountId String
+  account   CustomerAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  type  CustomerNotificationType @default(ORDER_UPDATE)
+  title String
+  body  String
+
+  // Optional context snapshots (no FKs: these are cross-tenant references).
+  orderId        String?
+  orderNumber    String?
+  restaurantId   String?
+  restaurantName String?
+  link           String?
+
+  isRead Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@index([accountId, isRead])
+  @@index([accountId, createdAt])
 }
 
 // Timestamped CRM notes attached to a customer (add / edit / delete).
@@ -491,7 +610,7 @@ model CustomerNote {
 }
 
 model Order {
-  id           String @id @default(cuid())
+  id           String     @id @default(cuid())
   restaurantId String
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   customerId   String?
@@ -518,7 +637,7 @@ model Order {
   deliveryFee    Decimal @default(0) @db.Decimal(10, 2)
   total          Decimal @db.Decimal(10, 2)
 
-  couponCode      String? // snapshot of an applied coupon code
+  couponCode String? // snapshot of an applied coupon code
 
   notes           String? // customer-facing note (delivery instructions, etc.)
   restaurantNotes String? // internal staff note, never shown to the customer
@@ -529,8 +648,8 @@ model Order {
   events    OrderEvent[]
   payments  Payment[]
   review    Review?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
 
   @@unique([restaurantId, orderNumber])
   @@index([restaurantId, status])
@@ -540,9 +659,9 @@ model Order {
 }
 
 model OrderItem {
-  id        String @id @default(cuid())
+  id        String   @id @default(cuid())
   orderId   String
-  order     Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   productId String?
   product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
 
@@ -587,9 +706,9 @@ model Payment {
 
   kind        PaymentKind   @default(SALE)
   method      PaymentMethod
-  amount      Decimal  @db.Decimal(10, 2) // always positive; `kind` gives the direction
-  tendered    Decimal? @db.Decimal(10, 2) // cash handed over (for change calc)
-  changeGiven Decimal? @db.Decimal(10, 2)
+  amount      Decimal       @db.Decimal(10, 2) // always positive; `kind` gives the direction
+  tendered    Decimal?      @db.Decimal(10, 2) // cash handed over (for change calc)
+  changeGiven Decimal?      @db.Decimal(10, 2)
   cardLast4   String?
   reference   String? // card auth ref / external txn id
   note        String?
@@ -634,7 +753,7 @@ model DrawerMovement {
   drawerSession   DrawerSession @relation(fields: [drawerSessionId], references: [id], onDelete: Cascade)
 
   type    DrawerMovementType
-  amount  Decimal @db.Decimal(10, 2) // signed: + in, - out
+  amount  Decimal            @db.Decimal(10, 2) // signed: + in, - out
   reason  String?
   orderId String? // linked order for SALE / REFUND movements
 
@@ -722,8 +841,8 @@ model LoyaltyTransaction {
   customer     Customer   @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
   type    LoyaltyTxnType
-  points  Int     @default(0) // signed: + earned, - redeemed
-  amount  Decimal @default(0) @db.Decimal(10, 2) // cashback currency, signed
+  points  Int            @default(0) // signed: + earned, - redeemed
+  amount  Decimal        @default(0) @db.Decimal(10, 2) // cashback currency, signed
   orderId String?
   note    String?
 
@@ -738,7 +857,7 @@ model LoyaltyTransaction {
 // Storefront: reservations & reviews
 // ---------------------------------------------------------------------------
 model Reservation {
-  id           String @id @default(cuid())
+  id           String     @id @default(cuid())
   restaurantId String
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
@@ -746,16 +865,16 @@ model Reservation {
   tableId String?
   table   RestaurantTable? @relation(fields: [tableId], references: [id], onDelete: SetNull)
 
-  name      String
-  phone     String
-  email     String?
-  date      DateTime // requested date + time (start)
-  durationMins Int    @default(90)
-  partySize Int      @default(2)
-  notes     String?
-  status    ReservationStatus @default(PENDING)
-  source    ReservationSource @default(WEBSITE)
-  reference String? // short human code for lookups (unique per restaurant)
+  name         String
+  phone        String
+  email        String?
+  date         DateTime // requested date + time (start)
+  durationMins Int               @default(90)
+  partySize    Int               @default(2)
+  notes        String?
+  status       ReservationStatus @default(PENDING)
+  source       ReservationSource @default(WEBSITE)
+  reference    String? // short human code for lookups (unique per restaurant)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -770,12 +889,12 @@ model Reservation {
 // Reservation tables & settings
 // ---------------------------------------------------------------------------
 model RestaurantTable {
-  id           String @id @default(cuid())
+  id           String     @id @default(cuid())
   restaurantId String
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
   name     String // e.g. "T1", "Patio 3"
-  capacity Int    @default(2)
+  capacity Int     @default(2)
   location String? // "Indoor", "Patio", "Bar"
   isActive Boolean @default(true)
   position Int     @default(0)
@@ -791,8 +910,8 @@ model RestaurantTable {
 
 // Per-restaurant reservation configuration (a single row per restaurant).
 model ReservationSetting {
-  id           String @id @default(cuid())
-  restaurantId String @unique
+  id           String     @id @default(cuid())
+  restaurantId String     @unique
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
   enabled         Boolean @default(true)
@@ -813,20 +932,20 @@ model ReservationSetting {
 }
 
 model Review {
-  id           String @id @default(cuid())
+  id           String     @id @default(cuid())
   restaurantId String
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   customerId   String?
-  customer     Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  orderId      String?  @unique
-  order        Order?   @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  customer     Customer?  @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  orderId      String?    @unique
+  order        Order?     @relation(fields: [orderId], references: [id], onDelete: SetNull)
 
   customerName String
   rating       Int // 1..5
   comment      String?
   reply        String? // owner's response
   repliedAt    DateTime?
-  isPublished  Boolean @default(true)
+  isPublished  Boolean   @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -837,7 +956,7 @@ model Review {
 }
 
 model Coupon {
-  id           String @id @default(cuid())
+  id           String     @id @default(cuid())
   restaurantId String
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
@@ -868,7 +987,7 @@ model Coupon {
 // QR menu codes
 // ---------------------------------------------------------------------------
 model QrCode {
-  id           String @id @default(cuid())
+  id           String     @id @default(cuid())
   restaurantId String
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
@@ -907,7 +1026,7 @@ model QrCode {
 // contain {{placeholders}} interpolated at send time. Absence of a row means the
 // built-in default template (lib/notifications/templates.ts) is used.
 model NotificationTemplate {
-  id           String @id @default(cuid())
+  id           String     @id @default(cuid())
   restaurantId String
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
@@ -927,7 +1046,7 @@ model NotificationTemplate {
 
 // Append-only history of every notification the platform attempted to send.
 model NotificationLog {
-  id           String @id @default(cuid())
+  id           String     @id @default(cuid())
   restaurantId String
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
@@ -957,7 +1076,7 @@ model NotificationLog {
 // A restaurant's API credential. Only the SHA-256 hash of the secret is stored;
 // the plaintext key is shown to the owner exactly once at creation time.
 model ApiKey {
-  id           String @id @default(cuid())
+  id           String     @id @default(cuid())
   restaurantId String
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
@@ -1169,11 +1288,11 @@ model Plan {
 
 // One subscription per restaurant (the tenant's place on a Plan).
 model Subscription {
-  id           String @id @default(cuid())
-  restaurantId String @unique
+  id           String     @id @default(cuid())
+  restaurantId String     @unique
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   planId       String
-  plan         Plan   @relation(fields: [planId], references: [id])
+  plan         Plan       @relation(fields: [planId], references: [id])
 
   status       SubscriptionStatus @default(TRIALING)
   billingCycle BillingCycle       @default(MONTHLY)
@@ -1242,13 +1361,13 @@ model ProcessedWebhook {
 
 // Support tickets. May be raised by a tenant (restaurantId set) or unattached.
 model SupportTicket {
-  id           String         @id @default(cuid())
+  id           String      @id @default(cuid())
   restaurantId String?
-  restaurant   Restaurant?    @relation(fields: [restaurantId], references: [id], onDelete: SetNull)
+  restaurant   Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: SetNull)
 
-  subject      String
-  status       TicketStatus   @default(OPEN)
-  priority     TicketPriority @default(NORMAL)
+  subject  String
+  status   TicketStatus   @default(OPEN)
+  priority TicketPriority @default(NORMAL)
 
   // Denormalised requester snapshot so the ticket is self-contained.
   requesterName  String

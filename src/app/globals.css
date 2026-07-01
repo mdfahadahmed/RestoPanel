@@ -169,6 +169,48 @@ body {
 }
 ::-webkit-scrollbar-thumb:hover { background: var(--color-ink-700); }
 
+/* ------------------------------------------------------------------ */
+/*  Customer account panel — optional light theme                      */
+/*  Scoped to the /account panel only (class on #account-root). Because */
+/*  Tailwind v4 utilities compile to `var(--color-*)`, redefining the   */
+/*  tokens on this container cascades to every descendant utility.      */
+/* ------------------------------------------------------------------ */
+.account-light {
+  --color-ink-950: #f5f6f8;
+  --color-ink-900: #ffffff;
+  --color-ink-850: #f1f2f5;
+  --color-ink-800: #e9eaee;
+  --color-ink-700: #dcdee4;
+  --color-ink-600: #c8cbd3;
+
+  --color-line: #e3e5ea;
+
+  --color-fog-100: #14141a;
+  --color-fog-300: #33333d;
+  --color-fog-400: #55555f;
+  --color-fog-500: #74747f;
+  --color-fog-600: #9a9aa4;
+
+  color: var(--color-fog-100);
+}
+
+/* Rebalance translucent surfaces that assume a dark backdrop. */
+.account-light .glass {
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.035),
+    rgba(0, 0, 0, 0.015)
+  );
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.account-light .bg-mesh {
+  background-image:
+    radial-gradient(60% 50% at 20% 0%, rgba(139, 92, 246, 0.1), transparent 60%),
+    radial-gradient(50% 50% at 90% 10%, rgba(212, 167, 60, 0.08), transparent 60%);
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     animation-duration: 0.001ms !important;

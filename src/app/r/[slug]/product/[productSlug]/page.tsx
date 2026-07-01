@@ -10,6 +10,9 @@ import type { Extra, ProductImage, Variant } from "@/lib/validations/product";
 import { ProductGallery } from "@/components/store/ProductGallery";
 import { AddToCart, type AddToCartProduct } from "@/components/store/AddToCart";
 import { ProductCard } from "@/components/store/ProductCard";
+import { FavoriteButton } from "@/components/store/FavoriteButton";
+import { getCustomerSession } from "@/lib/account/context";
+import { isFavorited } from "@/lib/account/service";
 
 export const dynamic = "force-dynamic";
 
@@ -86,6 +89,19 @@ export default async function ProductDetailPage({
 
   const orderable = product.isAvailable;
 
+  // Customer-account favourite state (guarded: the storefront is public, so a
+  // missing/invalid session simply means "not logged in").
+  let customerAccountId: string | null = null;
+  try {
+    const session = await getCustomerSession();
+    customerAccountId = session?.accountId ?? null;
+  } catch {
+    customerAccountId = null;
+  }
+  const favorited = customerAccountId
+    ? await isFavorited(customerAccountId, product.id)
+    : false;
+
   return (
     <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
       <Link href={`/r/${slug}/menu`} className="mb-6 inline-flex items-center gap-1.5 text-sm text-fog-400 hover:text-fog-100">
@@ -134,14 +150,22 @@ export default async function ProductDetailPage({
             </div>
           )}
 
-          <div className="mt-7">
+          <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-stretch">
             {orderable ? (
-              <AddToCart slug={slug} product={addToCartProduct} />
+              <div className="flex-1">
+                <AddToCart slug={slug} product={addToCartProduct} />
+              </div>
             ) : (
-              <p className="rounded-xl border border-line bg-ink-900 px-4 py-3 text-sm text-fog-400">
+              <p className="flex-1 rounded-xl border border-line bg-ink-900 px-4 py-3 text-sm text-fog-400">
                 This item is currently unavailable.
               </p>
             )}
+            <FavoriteButton
+              productId={product.id}
+              isLoggedIn={customerAccountId !== null}
+              initialFavorited={favorited}
+              loginNext={`/r/${slug}/product/${productSlug}`}
+            />
           </div>
         </div>
       </div>

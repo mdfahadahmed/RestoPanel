@@ -7,6 +7,7 @@ import { toStoreProduct } from "@/lib/storefront/product";
 import { GsapReveal } from "@/components/dashboard/GsapReveal";
 import { Hero } from "@/components/store/Hero";
 import { ProductCard } from "@/components/store/ProductCard";
+import { JsonLd } from "@/components/seo/JsonLd";
 
 export const dynamic = "force-dynamic";
 
@@ -49,8 +50,31 @@ export default async function StoreHomePage({ params }: { params: Promise<{ slug
     ? `https://www.google.com/maps?q=${encodeURIComponent(restaurant.address)}&output=embed`
     : null;
 
+  const restaurantLd: Record<string, unknown> = {
+    "@context": "https://schema.org",
+    "@type": "Restaurant",
+    name: restaurant.name,
+    url: `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/r/${slug}`,
+    ...(restaurant.description ? { description: restaurant.description } : {}),
+    ...(restaurant.logoUrl ? { image: restaurant.logoUrl } : {}),
+    ...(restaurant.address ? { address: restaurant.address } : {}),
+    ...(restaurant.phone ? { telephone: restaurant.phone } : {}),
+    priceRange: "$$",
+    servesCuisine: "Restaurant",
+    ...(reviewSummary.count > 0
+      ? {
+          aggregateRating: {
+            "@type": "AggregateRating",
+            ratingValue: reviewSummary.average,
+            reviewCount: reviewSummary.count,
+          },
+        }
+      : {}),
+  };
+
   return (
     <div>
+      <JsonLd data={restaurantLd} />
       <Hero
         slug={slug}
         name={restaurant.name}

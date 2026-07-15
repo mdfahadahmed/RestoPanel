@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { Navbar } from "@/components/landing/Navbar";
 import { Footer } from "@/components/landing/Footer";
+import { JsonLd } from "@/components/seo/JsonLd";
 import { getPublishedPost } from "@/lib/marketing/content";
 import { formatDate } from "@/lib/utils";
 
@@ -44,8 +45,23 @@ export default async function BlogPostPage({
     .map((p) => p.trim())
     .filter(Boolean);
 
+  const published = (post.publishedAt ?? post.createdAt).toISOString();
+
   return (
     <>
+      <JsonLd
+        data={{
+          "@context": "https://schema.org",
+          "@type": "BlogPosting",
+          headline: post.title,
+          description: post.excerpt ?? undefined,
+          image: post.coverUrl ?? undefined,
+          author: { "@type": "Organization", name: post.author },
+          publisher: { "@type": "Organization", name: "RestoPanel" },
+          datePublished: published,
+          dateModified: post.updatedAt.toISOString(),
+        }}
+      />
       <Navbar />
       <main className="mx-auto max-w-3xl px-4 pb-24 pt-28 sm:px-6 sm:pt-32">
         <Link

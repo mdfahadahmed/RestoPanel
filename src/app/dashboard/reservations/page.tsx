@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { CalendarCheck, Clock, CalendarDays, Utensils, Armchair, Settings } from "lucide-react";
 import type { ReservationStatus } from "@prisma/client";
+import { GsapReveal } from "@/components/dashboard/GsapReveal";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { SearchInput } from "@/components/dashboard/SearchInput";
@@ -76,7 +77,7 @@ export default async function ReservationsPage({
   const tableOptions = tables.map((t) => ({ id: t.id, name: t.name, capacity: t.capacity }));
 
   return (
-    <>
+    <GsapReveal className="space-y-6">
       <PageHeader
         title="Reservations"
         description="Bookings, table availability and approvals."
@@ -89,7 +90,7 @@ export default async function ReservationsPage({
         }
       />
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Today" value={formatNumber(stats.today)} icon={CalendarCheck} />
         <StatCard label="Pending approval" value={formatNumber(stats.pending)} icon={Clock} accent="text-amber-300" />
         <StatCard label="Upcoming" value={formatNumber(stats.upcoming)} icon={CalendarDays} />
@@ -102,7 +103,7 @@ export default async function ReservationsPage({
         </div>
 
         <div className="space-y-3 lg:col-span-2">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <SearchInput placeholder="Search name, phone, ref…" />
             {!sp.date && <ParamTabs paramKey="scope" options={SCOPE_OPTIONS} defaultValue="upcoming" />}
           </div>
@@ -163,6 +164,6 @@ export default async function ReservationsPage({
           )}
         </div>
       </div>
-    </>
+    </GsapReveal>
   );
 }

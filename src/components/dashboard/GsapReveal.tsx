@@ -14,7 +14,7 @@ interface GsapRevealProps {
  * (opacity + slight rise) on mount via GSAP, loaded dynamically so it never
  * runs during SSR. Respects `prefers-reduced-motion`.
  */
-export function GsapReveal({ children, stagger = 0.06, className }: GsapRevealProps) {
+export function GsapReveal({ children, stagger = 0.04, className }: GsapRevealProps) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -31,8 +31,8 @@ export function GsapReveal({ children, stagger = 0.06, className }: GsapRevealPr
       ctx = gsap.context(() => {
         gsap.from(gsap.utils.toArray<HTMLElement>(ref.current!.children), {
           opacity: 0,
-          y: 12,
-          duration: 0.5,
+          y: 10,
+          duration: 0.32,
           ease: "power2.out",
           stagger,
           clearProps: "opacity,transform",

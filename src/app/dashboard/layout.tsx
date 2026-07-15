@@ -3,7 +3,6 @@ import { requireTenant } from "@/lib/tenant";
 import { Sidebar } from "@/components/dashboard/Sidebar";
 import { MobileNav } from "@/components/dashboard/MobileNav";
 import { SignOutButton } from "@/components/dashboard/SignOutButton";
-import { PageTransition } from "@/components/dashboard/PageTransition";
 import { GlobalSearch } from "@/components/dashboard/GlobalSearch";
 import { NotificationsCenter } from "@/components/dashboard/NotificationsCenter";
 import { Toaster } from "@/components/ui/sonner";
@@ -48,7 +47,7 @@ export default async function DashboardLayout({
           </div>
         </header>
         <main id="dashboard-main" className="flex-1 p-4 sm:p-7">
-          <PageTransition>{children}</PageTransition>
+          {children}
         </main>
       </div>
       <Toaster />

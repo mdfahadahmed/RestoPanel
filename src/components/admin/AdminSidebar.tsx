@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ADMIN_SECTIONS, isAdminNavActive } from "./nav";
+import { NavPending } from "@/components/dashboard/NavPending";
 
 export function AdminSidebar() {
   const pathname = usePathname();
@@ -46,6 +47,7 @@ export function AdminSidebar() {
                     >
                       <Icon className="h-4 w-4 shrink-0" />
                       {label}
+                      <NavPending />
                     </Link>
                   );
                 })}

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { ACCOUNT_SECTIONS } from "./nav";
+import { NavPending } from "@/components/dashboard/NavPending";
 
 function isActive(pathname: string, href: string) {
   return href === "/account" ? pathname === "/account" : pathname.startsWith(href);
@@ -52,6 +53,7 @@ export function AccountSidebar({ unread = 0 }: { unread?: number }) {
                           {unread > 9 ? "9+" : unread}
                         </span>
                       )}
+                      <NavPending />
                     </Link>
                   );
                 })}

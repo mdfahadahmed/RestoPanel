@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { DASHBOARD_SECTIONS } from "./nav";
+import { NavPending } from "./NavPending";
 
 export function MobileNav() {
   const pathname = usePathname();
@@ -63,6 +64,7 @@ export function MobileNav() {
                     >
                       <Icon className="h-4 w-4 shrink-0" />
                       {label}
+                      <NavPending />
                     </Link>
                   );
                 })}

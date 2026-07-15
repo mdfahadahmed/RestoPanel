@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { DASHBOARD_SECTIONS } from "./nav";
+import { NavPending } from "./NavPending";
 
 function isActive(pathname: string, href: string) {
   return href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(href);
@@ -47,6 +48,7 @@ export function Sidebar() {
                     >
                       <Icon className="h-4 w-4 shrink-0" />
                       {label}
+                      <NavPending />
                     </Link>
                   );
                 })}

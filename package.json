@@ -13,6 +13,7 @@
     "db:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
     "db:seed:admin": "tsx scripts/seed-admin.ts",
+    "db:seed:blog": "tsx scripts/seed-blog.ts",
     "billing:renew": "tsx scripts/process-renewals.ts",
     "db:backup": "tsx scripts/backup-db.ts",
     "test": "tsx scripts/run-tests.ts"

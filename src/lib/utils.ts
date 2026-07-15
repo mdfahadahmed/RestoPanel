@@ -35,6 +35,20 @@ export function formatCurrency(value: number, currency = "GBP", locale?: string)
   }).format(value);
 }
 
+/**
+ * Local-timezone date key as `YYYY-MM-DD` for use with `<input type="date">`.
+ * Unlike `toISOString().slice(0,10)` (which is UTC and can be a day off in
+ * negative-offset timezones like the US/Canada), this reflects the user's own
+ * calendar day. Compute it on the client (e.g. in an effect) to avoid SSR/CSR
+ * hydration differences.
+ */
+export function localDateKey(date: Date = new Date()): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 /** Format an ISO date / Date as a short readable string. */
 export function formatDate(date: Date | string, opts?: Intl.DateTimeFormatOptions) {
   const d = typeof date === "string" ? new Date(date) : date;

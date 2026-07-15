@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { localDateKey } from "@/lib/utils";
 import { createReservationAction } from "./actions";
 
 export function NewReservationDialog({ tables }: { tables: { id: string; name: string; capacity: number }[] }) {
@@ -65,7 +66,7 @@ export function NewReservationDialog({ tables }: { tables: { id: string; name: s
           <div className="space-y-1.5 col-span-2"><Label>Name</Label><Input value={f.name} onChange={(e) => set("name", e.target.value)} />{err("name") && <p className="text-xs text-rose-400">{err("name")}</p>}</div>
           <div className="space-y-1.5"><Label>Phone</Label><Input value={f.phone} onChange={(e) => set("phone", e.target.value)} />{err("phone") && <p className="text-xs text-rose-400">{err("phone")}</p>}</div>
           <div className="space-y-1.5"><Label>Email (optional)</Label><Input value={f.email} onChange={(e) => set("email", e.target.value)} /></div>
-          <div className="space-y-1.5"><Label>Date</Label><Input type="date" value={f.date} onChange={(e) => set("date", e.target.value)} />{err("date") && <p className="text-xs text-rose-400">{err("date")}</p>}</div>
+          <div className="space-y-1.5"><Label>Date</Label><Input type="date" min={localDateKey()} value={f.date} onChange={(e) => set("date", e.target.value)} />{err("date") && <p className="text-xs text-rose-400">{err("date")}</p>}</div>
           <div className="space-y-1.5"><Label>Time</Label><Input type="time" value={f.time} onChange={(e) => set("time", e.target.value)} /></div>
           <div className="space-y-1.5"><Label>Party size</Label><Input type="number" min={1} value={f.partySize} onChange={(e) => set("partySize", e.target.value)} /></div>
           <div className="space-y-1.5">

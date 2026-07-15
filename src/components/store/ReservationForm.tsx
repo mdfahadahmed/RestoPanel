@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { createReservationPublic, getAvailableSlotsPublic } from "@/app/r/[slug]/actions";
+import { localDateKey } from "@/lib/utils";
 
 type FieldErrors = Record<string, string[] | undefined>;
 
@@ -24,7 +25,10 @@ export function ReservationForm({ slug }: { slug: string }) {
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [slotsLoaded, setSlotsLoaded] = useState(false);
 
-  const today = new Date().toISOString().slice(0, 10);
+  // Earliest selectable day = the user's local "today" (computed client-side to
+  // reflect their timezone and avoid an SSR/CSR hydration mismatch).
+  const [today, setToday] = useState("");
+  useEffect(() => setToday(localDateKey()), []);
 
   // Load available slots whenever date or party size changes.
   useEffect(() => {

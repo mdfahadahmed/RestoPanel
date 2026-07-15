@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { localDateKey } from "@/lib/utils";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -183,7 +184,7 @@ function RescheduleDialog({
       <DialogContent className="max-w-md">
         <DialogHeader><DialogTitle>Reschedule reservation</DialogTitle></DialogHeader>
         <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5"><Label>Date</Label><Input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></div>
+          <div className="space-y-1.5"><Label>Date</Label><Input type="date" min={localDateKey()} value={date} onChange={(e) => setDate(e.target.value)} /></div>
           <div className="space-y-1.5"><Label>Time</Label><Input type="time" value={time} onChange={(e) => setTime(e.target.value)} /></div>
           <div className="space-y-1.5"><Label>Party size</Label><Input type="number" min={1} value={partySize} onChange={(e) => setPartySize(e.target.value)} /></div>
           {tables.length > 0 && (

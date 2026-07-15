@@ -4,13 +4,15 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 
+// Absolute (`/#…`) so they work from sub-pages (blog, changelog) too, not just
+// the homepage.
 const NAV_LINKS = [
-  { label: "Features", href: "#features" },
-  { label: "Dashboard", href: "#dashboard" },
-  { label: "Pricing", href: "#pricing" },
-  { label: "Testimonials", href: "#testimonials" },
-  { label: "FAQ", href: "#faq" },
-  { label: "Contact", href: "#contact" },
+  { label: "Features", href: "/#features" },
+  { label: "Pricing", href: "/#pricing" },
+  { label: "Testimonials", href: "/#testimonials" },
+  { label: "FAQ", href: "/#faq" },
+  { label: "Blog", href: "/blog" },
+  { label: "Contact", href: "/#contact" },
 ];
 
 export function Navbar() {

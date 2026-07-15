@@ -4,18 +4,19 @@ const GROUPS = [
   {
     title: "Product",
     links: [
-      { label: "Features", href: "#features" },
-      { label: "Dashboard", href: "#dashboard" },
-      { label: "Pricing", href: "#pricing" },
-      { label: "FAQ", href: "#faq" },
+      { label: "Features", href: "/#features" },
+      { label: "Pricing", href: "/#pricing" },
+      { label: "FAQ", href: "/#faq" },
+      { label: "Book a demo", href: "/#contact" },
     ],
   },
   {
-    title: "Company",
+    title: "Resources",
     links: [
-      { label: "Testimonials", href: "#testimonials" },
-      { label: "Contact", href: "#contact" },
-      { label: "Book a demo", href: "#contact" },
+      { label: "Help Center", href: "/help" },
+      { label: "Blog", href: "/blog" },
+      { label: "Changelog", href: "/changelog" },
+      { label: "API docs", href: "/docs" },
     ],
   },
   {
@@ -23,6 +24,7 @@ const GROUPS = [
     links: [
       { label: "Create account", href: "/register" },
       { label: "Sign in", href: "/login" },
+      { label: "Contact", href: "/#contact" },
     ],
   },
 ];

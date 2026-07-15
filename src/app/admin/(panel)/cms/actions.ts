@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { requireAdmin } from "@/lib/admin/auth";
 import {
   saveCmsPage,
@@ -47,6 +47,7 @@ export async function saveFaqAction(
   if (!parsed.success) return actionError("Validation failed", fieldErrors(parsed.error));
   await upsertFaq({ id: input.id, ...parsed.data });
   revalidatePath("/admin/cms");
+  revalidateTag("marketing");
   return actionOk();
 }
 
@@ -55,6 +56,7 @@ export async function deleteFaqAction(id: string): Promise<ActionResult> {
   if (!id) return actionError("Missing id.");
   await deleteFaq(id);
   revalidatePath("/admin/cms");
+  revalidateTag("marketing");
   return actionOk();
 }
 
@@ -72,6 +74,7 @@ export async function saveBlogPostAction(
     coverUrl: parsed.data.coverUrl || null,
   });
   revalidatePath("/admin/cms");
+  revalidateTag("marketing");
   return actionOk();
 }
 
@@ -80,6 +83,7 @@ export async function deleteBlogPostAction(id: string): Promise<ActionResult> {
   if (!id) return actionError("Missing id.");
   await deleteBlogPost(id);
   revalidatePath("/admin/cms");
+  revalidateTag("marketing");
   return actionOk();
 }
 

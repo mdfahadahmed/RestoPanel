@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Minus, Plus, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
-import { formatCurrency } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { useCart } from "./cart/CartProvider";
 
@@ -19,7 +18,7 @@ export interface AddToCartProduct {
 }
 
 export function AddToCart({ slug, product }: { slug: string; product: AddToCartProduct }) {
-  const { add } = useCart();
+  const { add, format } = useCart();
   const router = useRouter();
   const [variant, setVariant] = useState<string | null>(null);
   const [extras, setExtras] = useState<string[]>([]);
@@ -62,7 +61,7 @@ export function AddToCart({ slug, product }: { slug: string; product: AddToCartP
                 active={variant === v.name}
                 onClick={() => setVariant(v.name)}
                 label={v.name}
-                hint={v.priceAdjustment ? `+${formatCurrency(v.priceAdjustment)}` : undefined}
+                hint={v.priceAdjustment ? `+${format(v.priceAdjustment)}` : undefined}
               />
             ))}
           </div>
@@ -83,7 +82,7 @@ export function AddToCart({ slug, product }: { slug: string; product: AddToCartP
                     setExtras((prev) => (on ? prev.filter((n) => n !== e.name) : [...prev, e.name]))
                   }
                   label={e.name}
-                  hint={`+${formatCurrency(e.price)}`}
+                  hint={`+${format(e.price)}`}
                 />
               );
             })}
@@ -102,7 +101,7 @@ export function AddToCart({ slug, product }: { slug: string; product: AddToCartP
           </button>
         </div>
         <div className="text-sm text-fog-400">
-          {formatCurrency(unitPrice)} <span className="text-fog-600">each</span>
+          {format(unitPrice)} <span className="text-fog-600">each</span>
         </div>
       </div>
 
@@ -111,7 +110,7 @@ export function AddToCart({ slug, product }: { slug: string; product: AddToCartP
           onClick={() => addToCart(false)}
           className="inline-flex flex-1 items-center justify-center gap-2 rounded-full bg-gold-400 px-6 py-3 font-medium text-ink-950 transition hover:bg-gold-300"
         >
-          <ShoppingBag className="h-4 w-4" /> Add to cart · {formatCurrency(unitPrice * qty)}
+          <ShoppingBag className="h-4 w-4" /> Add to cart · {format(unitPrice * qty)}
         </button>
         <button
           onClick={() => addToCart(true)}

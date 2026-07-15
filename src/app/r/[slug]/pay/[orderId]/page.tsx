@@ -50,7 +50,7 @@ export default async function PayPage({
             orderId={order.id}
             orderNumber={order.orderNumber}
             total={Number(order.total)}
-            currencySymbol={restaurant.currencySymbol}
+            currency={restaurant.currency}
             provider={started.data!.provider}
             clientSecret={started.data!.clientSecret}
             publishableKey={publishableKey}

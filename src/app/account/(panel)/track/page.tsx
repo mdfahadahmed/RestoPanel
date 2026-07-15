@@ -60,7 +60,7 @@ export default async function AccountTrackListPage() {
                     </p>
                   </div>
                   <p className="mt-0.5 truncate text-xs text-fog-500">
-                    {ORDER_TYPE_LABEL[o.type]} · {formatCurrency(Number(o.total))} ·{" "}
+                    {ORDER_TYPE_LABEL[o.type]} · {formatCurrency(Number(o.total), o.restaurant.currency)} ·{" "}
                     {formatDate(o.createdAt)}
                   </p>
                 </div>

@@ -14,6 +14,7 @@ export interface FavoriteItem {
   productSlug: string;
   restaurantSlug: string;
   restaurantName: string;
+  currency: string;
   price: number;
   discount: number;
   imageUrl: string | null;
@@ -100,11 +101,11 @@ export function FavoritesList({ items }: { items: FavoriteItem[] }) {
               <div className="mt-2 flex items-center justify-between">
                 <div className="flex items-baseline gap-1.5">
                   <span className="text-sm font-semibold text-fog-100">
-                    {formatCurrency(finalPrice)}
+                    {formatCurrency(finalPrice, f.currency)}
                   </span>
                   {f.discount > 0 && (
                     <span className="text-xs text-fog-600 line-through">
-                      {formatCurrency(f.price)}
+                      {formatCurrency(f.price, f.currency)}
                     </span>
                   )}
                 </div>

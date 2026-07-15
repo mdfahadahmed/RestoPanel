@@ -100,16 +100,16 @@ export default async function TrackOrderPage({
                   {item.quantity}× {item.nameSnapshot}
                   {opts.variant && <span className="text-fog-500"> · {opts.variant.name}</span>}
                 </span>
-                <span className="text-fog-200">{formatCurrency(Number(item.lineTotal))}</span>
+                <span className="text-fog-200">{formatCurrency(Number(item.lineTotal), restaurant.currency)}</span>
               </li>
             );
           })}
         </ul>
         <div className="mt-3 space-y-1 border-t border-line pt-3 text-sm">
-          <div className="flex justify-between text-fog-400"><span>Subtotal</span><span>{formatCurrency(Number(order.subtotal))}</span></div>
-          {Number(order.taxAmount) > 0 && <div className="flex justify-between text-fog-400"><span>Tax</span><span>{formatCurrency(Number(order.taxAmount))}</span></div>}
-          {Number(order.deliveryFee) > 0 && <div className="flex justify-between text-fog-400"><span>Delivery</span><span>{formatCurrency(Number(order.deliveryFee))}</span></div>}
-          <div className="flex justify-between border-t border-line pt-2 text-base font-semibold text-fog-100"><span>Total</span><span>{formatCurrency(Number(order.total))}</span></div>
+          <div className="flex justify-between text-fog-400"><span>Subtotal</span><span>{formatCurrency(Number(order.subtotal), restaurant.currency)}</span></div>
+          {Number(order.taxAmount) > 0 && <div className="flex justify-between text-fog-400"><span>Tax</span><span>{formatCurrency(Number(order.taxAmount), restaurant.currency)}</span></div>}
+          {Number(order.deliveryFee) > 0 && <div className="flex justify-between text-fog-400"><span>Delivery</span><span>{formatCurrency(Number(order.deliveryFee), restaurant.currency)}</span></div>}
+          <div className="flex justify-between border-t border-line pt-2 text-base font-semibold text-fog-100"><span>Total</span><span>{formatCurrency(Number(order.total), restaurant.currency)}</span></div>
         </div>
         {order.address && (
           <p className="mt-3 flex items-start gap-2 text-xs text-fog-500"><MapPin className="mt-0.5 h-3.5 w-3.5" /> {order.address}</p>
@@ -129,10 +129,15 @@ function NotFoundCard({ slug }: { slug: string }) {
   return (
     <div className="mx-auto max-w-md px-4 py-20 text-center">
       <h1 className="text-2xl font-semibold text-fog-50">Order not found</h1>
-      <p className="mt-2 text-fog-400">We couldn&apos;t find that order. Check the link and try again.</p>
-      <Link href={`/r/${slug}`} className="mt-6 inline-block rounded-full bg-gold-400 px-5 py-2.5 font-medium text-ink-950 hover:bg-gold-300">
-        Back to {slug}
-      </Link>
+      <p className="mt-2 text-fog-400">We couldn&apos;t find that order. Check the number and try again.</p>
+      <div className="mt-6 flex items-center justify-center gap-3">
+        <Link href={`/r/${slug}/track-order`} className="inline-block rounded-full bg-gold-400 px-5 py-2.5 font-medium text-ink-950 hover:bg-gold-300">
+          Try another number
+        </Link>
+        <Link href={`/r/${slug}`} className="inline-block rounded-full border border-line px-5 py-2.5 font-medium text-fog-200 hover:text-fog-50">
+          Back to home
+        </Link>
+      </div>
     </div>
   );
 }

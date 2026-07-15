@@ -375,6 +375,7 @@ model User {
   twoFactorBackupCodes String[]  @default([]) // sha256-hashed single-use recovery codes
   tokenVersion         Int       @default(0) // bump to invalidate all issued sessions
   lastLoginAt          DateTime?
+  emailVerifiedAt      DateTime? // set when the owner/staff confirms their email
 
   shifts        StaffShift[]
   attendance    AttendanceRecord[]
@@ -515,13 +516,14 @@ model Customer {
 // scoped to their own `accountId`. A single account links to many per-restaurant
 // `Customer` profiles, aggregating orders, favorites and notifications.
 model CustomerAccount {
-  id           String  @id @default(cuid())
-  email        String  @unique
-  passwordHash String
-  name         String
-  phone        String?
-  avatarUrl    String?
-  avatarKey    String?
+  id              String    @id @default(cuid())
+  email           String    @unique
+  passwordHash    String
+  name            String
+  phone           String?
+  avatarUrl       String?
+  avatarKey       String?
+  emailVerifiedAt DateTime? // set when the customer confirms their email
 
   // Preferences
   language             String  @default("en")
@@ -533,10 +535,12 @@ model CustomerAccount {
   tokenVersion Int       @default(0) // bump to invalidate all issued sessions
   lastLoginAt  DateTime?
 
-  customers     Customer[]
-  addresses     CustomerAddress[]
-  favorites     CustomerFavorite[]
-  notifications CustomerNotification[]
+  customers      Customer[]
+  addresses      CustomerAddress[]
+  favorites      CustomerFavorite[]
+  notifications  CustomerNotification[]
+  passwordResets CustomerPasswordReset[]
+  loginEvents    CustomerLoginEvent[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -607,6 +611,63 @@ model CustomerNotification {
 
   @@index([accountId, isRead])
   @@index([accountId, createdAt])
+}
+
+// A single-use password-reset token for a customer account. The raw token is
+// emailed to the customer; only its SHA-256 hash is stored here so a database
+// leak can't be used to reset passwords. Expires after a short window and is
+// consumed on use.
+model CustomerPasswordReset {
+  id        String          @id @default(cuid())
+  accountId String
+  account   CustomerAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([accountId])
+}
+
+// Authentication attempts against a customer account (success + failure) for the
+// account's "recent login activity" view and abuse detection. accountId is
+// nullable so failed attempts against an unknown email are still recorded.
+model CustomerLoginEvent {
+  id        String           @id @default(cuid())
+  accountId String?
+  account   CustomerAccount? @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  email     String
+  method    String  @default("password") // "password" | "reset"
+  success   Boolean
+  reason    String?
+  ip        String?
+  userAgent String?
+
+  createdAt DateTime @default(now())
+
+  @@index([accountId, createdAt])
+  @@index([email, createdAt])
+}
+
+// Single-use email-verification token. Generic across auth surfaces: `scope`
+// distinguishes an owner/staff `User` from a `CustomerAccount`, `subjectId` is
+// that row's id. Only the SHA-256 hash of the raw token is stored.
+model EmailVerificationToken {
+  id        String @id @default(cuid())
+  scope     String // "customer" | "user"
+  subjectId String
+  email     String
+
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([scope, subjectId])
 }
 
 // Timestamped CRM notes attached to a customer (add / edit / delete).

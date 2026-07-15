@@ -119,6 +119,16 @@ export function AccountAuthForm({ mode }: { mode: "login" | "register" }) {
           error={errors.password}
           required
         />
+        {mode === "login" && (
+          <div className="-mt-1 text-right">
+            <Link
+              href="/account/forgot-password"
+              className="text-xs font-medium text-fog-400 hover:text-fog-100"
+            >
+              Forgot password?
+            </Link>
+          </div>
+        )}
         {mode === "register" && (
           <AuthField
             id="confirmPassword"

@@ -14,6 +14,10 @@ import { getCustomerSession } from "@/lib/account/context";
 import { notifyAccountOrderPlaced } from "@/lib/account/notify";
 import { settlePaymentByIntent } from "@/lib/payments/service";
 
+// Thrown inside the order transaction to roll back when a coupon's usage limit
+// was exhausted concurrently between validation and the guarded increment.
+class CouponLimitReachedError extends Error {}
+
 // Public checkout — NO session. The restaurant is resolved from the public slug
 // and every write is scoped to that restaurantId. Pricing/tax/delivery are taken
 // from server-side data, never trusted from the client.
@@ -72,12 +76,14 @@ export async function placeOrderPublic(
   let discount = 0;
   let appliedCouponId: string | null = null;
   let appliedCouponCode: string | null = null;
+  let appliedCouponUsageLimit: number | null = null;
   if (data.couponCode) {
     const evalResult = await evaluateCoupon(restaurant.id, data.couponCode, itemResult.subtotal);
     if (!evalResult.ok) return actionError(evalResult.error);
     discount = evalResult.discount;
     appliedCouponId = evalResult.couponId;
     appliedCouponCode = evalResult.code;
+    appliedCouponUsageLimit = evalResult.usageLimit;
   }
 
   const taxRate = Number(restaurant.taxRate);
@@ -153,12 +159,29 @@ export async function placeOrderPublic(
 
   let createdOrderId: string;
   if (appliedCouponId) {
-    // Create the order and bump the coupon's usage atomically.
-    const [created] = await prisma.$transaction([
-      prisma.order.create({ data: orderData, select: { id: true } }),
-      prisma.coupon.update({ where: { id: appliedCouponId }, data: { usedCount: { increment: 1 } } }),
-    ]);
-    createdOrderId = created.id;
+    // Create the order and bump the coupon's usage atomically. The increment is
+    // guarded by the usage limit inside the transaction so two concurrent
+    // checkouts can't both slip past a nearly-exhausted coupon (TOCTOU): if the
+    // guarded update matches nothing, the limit was hit and we roll back.
+    try {
+      createdOrderId = await prisma.$transaction(async (tx) => {
+        const bumped = await tx.coupon.updateMany({
+          where:
+            appliedCouponUsageLimit == null
+              ? { id: appliedCouponId! }
+              : { id: appliedCouponId!, usedCount: { lt: appliedCouponUsageLimit } },
+          data: { usedCount: { increment: 1 } },
+        });
+        if (bumped.count === 0) throw new CouponLimitReachedError();
+        const created = await tx.order.create({ data: orderData, select: { id: true } });
+        return created.id;
+      });
+    } catch (e) {
+      if (e instanceof CouponLimitReachedError) {
+        return actionError("This coupon has reached its usage limit");
+      }
+      throw e;
+    }
   } else {
     const created = await prisma.order.create({ data: orderData, select: { id: true } });
     createdOrderId = created.id;

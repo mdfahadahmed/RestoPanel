@@ -99,7 +99,7 @@ export default async function AccountDashboardPage() {
                     <OrderStatusBadge status={o.status as OrderStatus} />
                   </div>
                   <p className="shrink-0 text-sm font-semibold text-fog-100">
-                    {formatCurrency(Number(o.total))}
+                    {formatCurrency(Number(o.total), o.restaurant.currency)}
                   </p>
                 </Link>
               </li>

@@ -159,7 +159,7 @@ export default async function AccountOrderDetailPage({
                     <p className="mt-0.5 text-xs text-fog-500">
                       Variant: {opts.variant.name}
                       {opts.variant.priceAdjustment
-                        ? ` (+${formatCurrency(Number(opts.variant.priceAdjustment))})`
+                        ? ` (+${formatCurrency(Number(opts.variant.priceAdjustment), order.restaurant.currency)})`
                         : ""}
                     </p>
                   )}
@@ -169,14 +169,14 @@ export default async function AccountOrderDetailPage({
                       {opts.extras
                         .map(
                           (e) =>
-                            `${e.name}${e.price ? ` (+${formatCurrency(Number(e.price))})` : ""}`
+                            `${e.name}${e.price ? ` (+${formatCurrency(Number(e.price), order.restaurant.currency)})` : ""}`
                         )
                         .join(", ")}
                     </p>
                   )}
                 </div>
                 <p className="shrink-0 text-sm font-medium text-fog-200">
-                  {formatCurrency(Number(item.lineTotal))}
+                  {formatCurrency(Number(item.lineTotal), order.restaurant.currency)}
                 </p>
               </li>
             );
@@ -185,29 +185,29 @@ export default async function AccountOrderDetailPage({
 
         {/* Totals */}
         <div className="mt-5 space-y-1.5 border-t border-line pt-4 text-sm">
-          <Row label="Subtotal" value={formatCurrency(Number(order.subtotal))} />
+          <Row label="Subtotal" value={formatCurrency(Number(order.subtotal), order.restaurant.currency)} />
           {Number(order.discountAmount) > 0 && (
             <Row
               label={`Discount${order.couponCode ? ` (${order.couponCode})` : ""}`}
-              value={`− ${formatCurrency(Number(order.discountAmount))}`}
+              value={`− ${formatCurrency(Number(order.discountAmount), order.restaurant.currency)}`}
               accent="text-emerald-300"
             />
           )}
           {Number(order.taxAmount) > 0 && (
             <Row
               label={order.restaurant.taxName || "Tax"}
-              value={formatCurrency(Number(order.taxAmount))}
+              value={formatCurrency(Number(order.taxAmount), order.restaurant.currency)}
             />
           )}
           {Number(order.deliveryFee) > 0 && (
             <Row
               label="Delivery fee"
-              value={formatCurrency(Number(order.deliveryFee))}
+              value={formatCurrency(Number(order.deliveryFee), order.restaurant.currency)}
             />
           )}
           <div className="flex items-center justify-between border-t border-line pt-3 text-base font-semibold text-fog-100">
             <span>Grand total</span>
-            <span>{formatCurrency(Number(order.total))}</span>
+            <span>{formatCurrency(Number(order.total), order.restaurant.currency)}</span>
           </div>
         </div>
       </section>

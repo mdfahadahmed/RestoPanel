@@ -12,7 +12,8 @@ interface PaymentPanelProps {
   orderId: string;
   orderNumber: string;
   total: number;
-  currencySymbol: string;
+  /** ISO currency code for the restaurant (e.g. "GBP", "USD", "CAD"). */
+  currency: string;
   provider: string;
   clientSecret: string | null;
   publishableKey: string | null;
@@ -30,11 +31,11 @@ export function PaymentPanel(props: PaymentPanelProps) {
   );
 }
 
-function AmountHeader({ total }: { total: number }) {
+function AmountHeader({ total, currency }: { total: number; currency: string }) {
   return (
     <div className="mb-5 flex items-center justify-between rounded-2xl border border-line bg-ink-900/50 px-5 py-4">
       <span className="text-sm text-fog-400">Amount due</span>
-      <span className="text-xl font-semibold text-fog-100">{formatCurrency(total)}</span>
+      <span className="text-xl font-semibold text-fog-100">{formatCurrency(total, currency)}</span>
     </div>
   );
 }
@@ -68,7 +69,7 @@ function MockPayment(props: PaymentPanelProps) {
 
   return (
     <div>
-      <AmountHeader total={props.total} />
+      <AmountHeader total={props.total} currency={props.currency} />
       <div className="rounded-2xl border border-line bg-ink-900/50 p-6">
         <div className="mb-4 flex items-center gap-2 text-sm text-fog-300">
           <CreditCard className="h-4 w-4 text-violet-300" />
@@ -85,7 +86,7 @@ function MockPayment(props: PaymentPanelProps) {
           className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full bg-gold-400 px-6 py-3 font-medium text-ink-950 transition hover:bg-gold-300 disabled:opacity-60"
         >
           {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />}
-          {pending ? "Processing…" : `Pay ${formatCurrency(props.total)}`}
+          {pending ? "Processing…" : `Pay ${formatCurrency(props.total, props.currency)}`}
         </button>
         <button
           type="button"
@@ -178,7 +179,7 @@ function StripePayment(props: PaymentPanelProps) {
 
   return (
     <div>
-      <AmountHeader total={props.total} />
+      <AmountHeader total={props.total} currency={props.currency} />
       <div className="rounded-2xl border border-line bg-ink-900/50 p-6">
         <div id="stripe-payment-element" className="min-h-[3rem]" />
         {!ready && !error && (
@@ -198,7 +199,7 @@ function StripePayment(props: PaymentPanelProps) {
           className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full bg-gold-400 px-6 py-3 font-medium text-ink-950 transition hover:bg-gold-300 disabled:opacity-60"
         >
           {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />}
-          {pending ? "Processing…" : `Pay ${formatCurrency(props.total)}`}
+          {pending ? "Processing…" : `Pay ${formatCurrency(props.total, props.currency)}`}
         </button>
         <p className="mt-3 flex items-center justify-center gap-1.5 text-xs text-fog-600">
           <Lock className="h-3 w-3" /> Secured by Stripe

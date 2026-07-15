@@ -5,6 +5,7 @@ import { Search, SlidersHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { StoreProduct } from "@/lib/storefront/product";
 import { ProductCard } from "./ProductCard";
+import { useCart } from "./cart/CartProvider";
 
 export type MenuItem = StoreProduct & { categoryId: string | null };
 type Category = { id: string; name: string };
@@ -21,6 +22,7 @@ export function MenuBrowser({
   categories: Category[];
   initialCategory?: string;
 }) {
+  const { format } = useCart();
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<string>(initialCategory ?? "all");
   const [sort, setSort] = useState<Sort>("featured");
@@ -92,9 +94,9 @@ export function MenuBrowser({
             aria-label="Max price"
           >
             <option value={0}>Any price</option>
-            <option value={Math.ceil(priceCeiling / 2)}>Under £{Math.ceil(priceCeiling / 2)}</option>
-            <option value={Math.ceil(priceCeiling * 0.75)}>Under £{Math.ceil(priceCeiling * 0.75)}</option>
-            <option value={priceCeiling}>Under £{priceCeiling}</option>
+            <option value={Math.ceil(priceCeiling / 2)}>Under {format(Math.ceil(priceCeiling / 2))}</option>
+            <option value={Math.ceil(priceCeiling * 0.75)}>Under {format(Math.ceil(priceCeiling * 0.75))}</option>
+            <option value={priceCeiling}>Under {format(priceCeiling)}</option>
           </select>
         </div>
       </div>

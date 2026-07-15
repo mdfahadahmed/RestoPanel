@@ -208,7 +208,7 @@ export default async function AccountTrackPage({
         <div className="mt-3 flex items-center justify-between border-t border-line pt-3 text-sm">
           <span className="text-fog-400">Total</span>
           <span className="font-semibold text-fog-100">
-            {formatCurrency(Number(order.total))}
+            {formatCurrency(Number(order.total), order.restaurant.currency)}
           </span>
         </div>
       </div>

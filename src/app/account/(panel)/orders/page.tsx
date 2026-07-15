@@ -106,7 +106,7 @@ export default async function AccountOrdersPage({
                     </td>
                     <td className="px-4 py-3 text-fog-400">{o._count.items}</td>
                     <td className="px-4 py-3 font-semibold text-fog-100">
-                      {formatCurrency(Number(o.total))}
+                      {formatCurrency(Number(o.total), o.restaurant.currency)}
                     </td>
                     <td className="px-4 py-3">
                       <PaymentStatusBadge status={o.paymentStatus as PaymentStatus} />
@@ -166,7 +166,7 @@ export default async function AccountOrdersPage({
                     {o._count.items} item{o._count.items === 1 ? "" : "s"}
                   </span>
                   <span className="text-sm font-semibold text-fog-100">
-                    {formatCurrency(Number(o.total))}
+                    {formatCurrency(Number(o.total), o.restaurant.currency)}
                   </span>
                 </div>
               </Link>

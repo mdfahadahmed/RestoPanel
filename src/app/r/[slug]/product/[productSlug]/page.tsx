@@ -119,8 +119,8 @@ export default async function ProductDetailPage({
           <h1 className="mt-3 text-3xl font-semibold tracking-tight text-fog-50">{product.name}</h1>
 
           <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl font-semibold text-fog-100">{formatCurrency(effective)}</span>
-            {discount > 0 && <span className="text-fog-600 line-through">{formatCurrency(price)}</span>}
+            <span className="text-2xl font-semibold text-fog-100">{formatCurrency(effective, restaurant.currency)}</span>
+            {discount > 0 && <span className="text-fog-600 line-through">{formatCurrency(price, restaurant.currency)}</span>}
             {discount > 0 && <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs text-emerald-300">-{discount}%</span>}
           </div>
 

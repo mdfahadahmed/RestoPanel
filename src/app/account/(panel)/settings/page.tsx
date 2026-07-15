@@ -1,14 +1,19 @@
 import { notFound } from "next/navigation";
 import { requireCustomer } from "@/lib/account/context";
 import { getAccountSettings } from "@/lib/account/service";
+import { listCustomerLogins } from "@/lib/account/login-history";
 import { SettingsForm } from "@/components/account/SettingsForm";
 import { ChangePasswordForm } from "@/components/account/ChangePasswordForm";
+import { LoginHistory } from "@/components/account/LoginHistory";
 
 export const dynamic = "force-dynamic";
 
 export default async function AccountSettingsPage() {
   const customer = await requireCustomer();
-  const account = await getAccountSettings(customer.accountId);
+  const [account, logins] = await Promise.all([
+    getAccountSettings(customer.accountId),
+    listCustomerLogins(customer.accountId, 20),
+  ]);
   if (!account) notFound();
 
   return (
@@ -29,6 +34,8 @@ export default async function AccountSettingsPage() {
       />
 
       <ChangePasswordForm />
+
+      <LoginHistory events={logins} />
     </div>
   );
 }

@@ -14,6 +14,9 @@ import { Prisma, PrismaClient } from "@prisma/client";
 import {
   registerAccount,
   authenticateAccount,
+  beginPasswordReset,
+  createPasswordResetToken,
+  resetPassword,
   getDashboardData,
   listOrders,
   listOrderedRestaurants,
@@ -281,6 +284,47 @@ async function main() {
     check("page 1 caps at perPage (8)", page1.orders.length === 8 && page1.pageCount >= 2, { len: page1.orders.length, pc: page1.pageCount });
     const page2 = await listOrders(accountA, q({ page: 2 }));
     check("page 2 returns the remainder", page2.orders.length === page1.total - 8);
+
+    console.log("\n[12] Password reset (forgot password)");
+    // Unknown email must not reveal whether an account exists.
+    const noReq = await beginPasswordReset("nobody-here@test.dev");
+    check("unknown email yields no token (no leak)", noReq === null);
+
+    const req = await beginPasswordReset(emailB);
+    check("known email mints a reset token", !!req && !!req.rawToken && req.email === emailB, req);
+    if (!req) throw new Error("beginPasswordReset returned null for known email");
+
+    // Requesting again invalidates the previous token (only latest link works).
+    const req2 = await beginPasswordReset(emailB);
+    check("second request issues a fresh token", !!req2 && req2.rawToken !== req.rawToken);
+    const staleReset = await resetPassword(req.rawToken, "shouldnotwork1");
+    check("superseded token is rejected", !staleReset.ok);
+
+    // Reset with the live token and verify the new password works.
+    const doReset = await resetPassword(req2!.rawToken, "resetpass1");
+    check("reset with valid token succeeds", doReset.ok, doReset);
+    check("new password authenticates after reset", (await authenticateAccount(emailB, "resetpass1")).ok);
+    check("old password rejected after reset", !(await authenticateAccount(emailB, "bobsecret1")).ok);
+
+    // Single-use: the same token cannot be replayed.
+    const replay = await resetPassword(req2!.rawToken, "another1");
+    check("used token cannot be replayed", !replay.ok);
+    check("replay did not change the password", (await authenticateAccount(emailB, "resetpass1")).ok);
+
+    // Garbage token is rejected.
+    check("invalid token rejected", !(await resetPassword("not-a-real-token", "whatever1")).ok);
+
+    // Expired token is rejected.
+    const expTok = await createPasswordResetToken(accountB);
+    await prisma.customerPasswordReset.updateMany({
+      where: { accountId: accountB, usedAt: null },
+      data: { expiresAt: new Date(Date.now() - 1000) },
+    });
+    check("expired token rejected", !(await resetPassword(expTok, "expired1")).ok);
+
+    // Reset invalidates other sessions (bumps tokenVersion).
+    const bAccount = await prisma.customerAccount.findUnique({ where: { id: accountB }, select: { tokenVersion: true } });
+    check("reset bumped tokenVersion (sessions invalidated)", (bAccount?.tokenVersion ?? 0) > 0);
   } finally {
     // Cleanup: accounts (cascades favorites/addresses/notifications), then
     // restaurants (cascades products/orders/customers).

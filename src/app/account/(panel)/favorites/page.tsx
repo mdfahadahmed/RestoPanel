@@ -26,6 +26,7 @@ export default async function AccountFavoritesPage() {
       productSlug: f.product.slug,
       restaurantSlug: f.product.restaurant.slug,
       restaurantName: f.product.restaurant.name,
+      currency: f.product.restaurant.currency,
       price: Number(f.product.price),
       discount: Number(f.product.discount),
       imageUrl: images[0]?.url ?? null,

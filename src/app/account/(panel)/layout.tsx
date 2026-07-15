@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Bell } from "lucide-react";
 import { requireCustomer } from "@/lib/account/context";
-import { unreadNotificationCount } from "@/lib/account/service";
+import { unreadNotificationCount, isEmailVerified } from "@/lib/account/service";
 import { AccountSidebar } from "@/components/account/AccountSidebar";
+import { VerificationBanner } from "@/components/account/VerificationBanner";
 import { AccountMobileNav } from "@/components/account/AccountMobileNav";
 import { AccountSignOutButton } from "@/components/account/AccountSignOutButton";
 import { Toaster } from "@/components/ui/sonner";
@@ -21,7 +22,10 @@ export default async function AccountPanelLayout({
 }) {
   // Resolves the signed-in customer or redirects to /account/login.
   const customer = await requireCustomer();
-  const unread = await unreadNotificationCount(customer.accountId);
+  const [unread, verified] = await Promise.all([
+    unreadNotificationCount(customer.accountId),
+    isEmailVerified(customer.accountId),
+  ]);
 
   return (
     <div
@@ -66,6 +70,8 @@ export default async function AccountPanelLayout({
             <AccountSignOutButton />
           </div>
         </header>
+
+        {!verified && <VerificationBanner />}
 
         <main id="account-main" className="flex-1 p-4 sm:p-7">
           {children}

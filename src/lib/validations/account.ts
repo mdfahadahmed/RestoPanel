@@ -21,6 +21,23 @@ export const customerLoginSchema = z.object({
 });
 export type CustomerLoginInput = z.infer<typeof customerLoginSchema>;
 
+export const forgotPasswordSchema = z.object({
+  email: z.string().trim().toLowerCase().email("Enter a valid email").max(200),
+});
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
+
+export const resetPasswordSchema = z
+  .object({
+    token: z.string().trim().min(1, "Reset token is missing"),
+    password: z.string().min(8, "Password must be at least 8 characters").max(128),
+    confirmPassword: z.string(),
+  })
+  .refine((d) => d.password === d.confirmPassword, {
+    message: "Passwords do not match",
+    path: ["confirmPassword"],
+  });
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+
 // --- Profile -----------------------------------------------------------------
 export const updateProfileSchema = z.object({
   name: z.string().trim().min(2, "Name is too short").max(120),

@@ -48,7 +48,7 @@ export default async function StoreLayout({
   const closure = (restaurant.temporaryClosure as { enabled?: boolean; message?: string } | null) ?? null;
 
   return (
-    <CartProvider slug={slug}>
+    <CartProvider slug={slug} currency={restaurant.currency}>
       <div className="flex min-h-screen flex-col bg-ink-950 text-fog-200">
         <StoreHeader slug={slug} name={restaurant.name} logoUrl={restaurant.logoUrl} />
         <Suspense fallback={null}>

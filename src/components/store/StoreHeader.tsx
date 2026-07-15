@@ -25,6 +25,7 @@ export function StoreHeader({ slug, name, logoUrl }: StoreHeaderProps) {
     { href: `${base}/menu`, label: "Menu" },
     { href: `${base}/about`, label: "About" },
     { href: `${base}/reservation`, label: "Reserve" },
+    { href: `${base}/track-order`, label: "Track" },
     { href: `${base}/contact`, label: "Contact" },
   ];
 

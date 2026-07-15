@@ -3,11 +3,12 @@
 import Link from "next/link";
 import Image from "next/image";
 import { ImageIcon, Settings2 } from "lucide-react";
-import { formatCurrency } from "@/lib/utils";
 import type { StoreProduct } from "@/lib/storefront/product";
 import { QuickAddButton } from "./QuickAddButton";
+import { useCart } from "./cart/CartProvider";
 
 export function ProductCard({ slug, product }: { slug: string; product: StoreProduct }) {
+  const { format } = useCart();
   const href = `/r/${slug}/product/${product.slug}`;
   return (
     <div className="group flex flex-col overflow-hidden rounded-2xl border border-line bg-ink-900/50 transition hover:border-fog-700 hover:shadow-soft">
@@ -47,9 +48,9 @@ export function ProductCard({ slug, product }: { slug: string; product: StorePro
         )}
         <div className="mt-3 flex items-center justify-between gap-2">
           <div className="flex items-baseline gap-1.5">
-            <span className="font-semibold text-fog-100">{formatCurrency(product.effective)}</span>
+            <span className="font-semibold text-fog-100">{format(product.effective)}</span>
             {product.discount > 0 && (
-              <span className="text-xs text-fog-600 line-through">{formatCurrency(product.price)}</span>
+              <span className="text-xs text-fog-600 line-through">{format(product.price)}</span>
             )}
           </div>
           {product.hasOptions ? (

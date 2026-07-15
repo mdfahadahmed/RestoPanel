@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
 export type CouponEvaluation =
-  | { ok: true; code: string; discount: number; couponId: string }
+  | { ok: true; code: string; discount: number; couponId: string; usageLimit: number | null }
   | { ok: false; error: string };
 
 /**
@@ -38,5 +38,5 @@ export async function evaluateCoupon(
   const raw = coupon.type === "PERCENTAGE" ? (subtotal * value) / 100 : value;
   const discount = round2(Math.min(raw, subtotal)); // never exceed the subtotal
 
-  return { ok: true, code: coupon.code, discount, couponId: coupon.id };
+  return { ok: true, code: coupon.code, discount, couponId: coupon.id, usageLimit: coupon.usageLimit };
 }

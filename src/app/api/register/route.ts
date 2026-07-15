@@ -6,6 +6,8 @@ import { generateUniqueRestaurantSlug } from "@/lib/slug";
 import { getFreePlan } from "@/lib/billing/plans";
 import { subscribeToPlan } from "@/lib/billing/subscription";
 import { sendWelcomeEmail } from "@/lib/notifications/notify";
+import { createEmailVerificationToken } from "@/lib/security/email-verification";
+import { sendVerificationEmail } from "@/lib/account/email";
 
 export async function POST(request: Request) {
   let payload: unknown;
@@ -57,7 +59,7 @@ export async function POST(request: Request) {
         },
       },
     },
-    select: { id: true, slug: true, name: true },
+    select: { id: true, slug: true, name: true, users: { select: { id: true }, take: 1 } },
   });
 
   // Place the new tenant on the Free plan so usage limits & feature gates apply.
@@ -73,6 +75,26 @@ export async function POST(request: Request) {
 
   // Welcome email (best-effort — never block signup).
   await sendWelcomeEmail(restaurant.id, email, ownerName).catch(() => undefined);
+
+  // Email-verification link for the new owner (best-effort, non-blocking).
+  const ownerId = restaurant.users[0]?.id;
+  if (ownerId) {
+    try {
+      const origin = (
+        process.env.AUTH_URL ||
+        process.env.NEXT_PUBLIC_APP_URL ||
+        new URL(request.url).origin
+      ).replace(/\/$/, "");
+      const rawToken = await createEmailVerificationToken("user", ownerId, email);
+      await sendVerificationEmail({
+        to: email,
+        name: ownerName,
+        verifyUrl: `${origin}/verify-email?token=${rawToken}`,
+      });
+    } catch {
+      /* verification is non-blocking */
+    }
+  }
 
   return NextResponse.json(
     {

@@ -3,11 +3,10 @@
 import Link from "next/link";
 import Image from "next/image";
 import { Minus, Plus, Trash2, ShoppingBag, ArrowRight } from "lucide-react";
-import { formatCurrency } from "@/lib/utils";
 import { useCart } from "./CartProvider";
 
 export function CartView({ slug }: { slug: string }) {
-  const { items, subtotal, setQuantity, remove, count, ready } = useCart();
+  const { items, subtotal, setQuantity, remove, count, ready, format } = useCart();
   const base = `/r/${slug}`;
 
   if (!ready) {
@@ -60,7 +59,7 @@ export function CartView({ slug }: { slug: string }) {
                     <Plus className="h-3.5 w-3.5" />
                   </button>
                 </div>
-                <span className="font-medium text-fog-100">{formatCurrency(item.unitPrice * item.quantity)}</span>
+                <span className="font-medium text-fog-100">{format(item.unitPrice * item.quantity)}</span>
               </div>
             </div>
           </li>
@@ -71,7 +70,7 @@ export function CartView({ slug }: { slug: string }) {
         <h2 className="font-semibold text-fog-100">Order summary</h2>
         <div className="mt-4 flex items-center justify-between text-sm">
           <span className="text-fog-400">Subtotal ({count} item{count === 1 ? "" : "s"})</span>
-          <span className="font-medium">{formatCurrency(subtotal)}</span>
+          <span className="font-medium">{format(subtotal)}</span>
         </div>
         <p className="mt-1 text-xs text-fog-500">Taxes & delivery calculated at checkout.</p>
         <Link

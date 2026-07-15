@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Truck, ShoppingBag, UtensilsCrossed } from "lucide-react";
-import { formatCurrency } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { computeTotals, round2 } from "@/lib/validations/order";
 import { useCart } from "./cart/CartProvider";
@@ -26,7 +25,7 @@ type FieldErrors = Record<string, string[] | undefined>;
 
 export function CheckoutForm({ slug, settings }: { slug: string; settings: CheckoutSettings }) {
   const router = useRouter();
-  const { items, subtotal, clear, ready } = useCart();
+  const { items, subtotal, clear, ready, format } = useCart();
 
   const typeOptions = useMemo(() => {
     const opts: { value: OrderType; label: string; icon: typeof Truck }[] = [];
@@ -235,7 +234,7 @@ export function CheckoutForm({ slug, settings }: { slug: string; settings: Check
           {items.map((i) => (
             <li key={i.lineId} className="flex justify-between gap-2 text-fog-300">
               <span className="min-w-0 truncate">{i.quantity}× {i.name}</span>
-              <span>{formatCurrency(i.unitPrice * i.quantity)}</span>
+              <span>{format(i.unitPrice * i.quantity)}</span>
             </li>
           ))}
         </ul>
@@ -268,13 +267,13 @@ export function CheckoutForm({ slug, settings }: { slug: string; settings: Check
         </div>
 
         <div className="mt-3 space-y-1.5 border-t border-line pt-3 text-sm">
-          <Row label="Subtotal" value={totals.subtotal} />
-          {totals.discountAmount > 0 && <Row label="Discount" value={-totals.discountAmount} />}
-          {totals.taxAmount > 0 && <Row label={`Tax (${settings.taxRate}%)`} value={totals.taxAmount} />}
-          {type === "DELIVERY" && <Row label="Delivery fee" value={totals.deliveryFee} />}
+          <Row label="Subtotal" value={totals.subtotal} format={format} />
+          {totals.discountAmount > 0 && <Row label="Discount" value={-totals.discountAmount} format={format} />}
+          {totals.taxAmount > 0 && <Row label={`Tax (${settings.taxRate}%)`} value={totals.taxAmount} format={format} />}
+          {type === "DELIVERY" && <Row label="Delivery fee" value={totals.deliveryFee} format={format} />}
           <div className="flex justify-between border-t border-line pt-2 text-base font-semibold text-fog-100">
             <span>Total</span>
-            <span>{formatCurrency(totals.total)}</span>
+            <span>{format(totals.total)}</span>
           </div>
         </div>
         <button
@@ -282,7 +281,7 @@ export function CheckoutForm({ slug, settings }: { slug: string; settings: Check
           disabled={pending || items.length === 0}
           className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full bg-gold-400 px-6 py-3 font-medium text-ink-950 transition hover:bg-gold-300 disabled:opacity-60"
         >
-          {pending ? "Placing order…" : `Place order · ${formatCurrency(totals.total)}`}
+          {pending ? "Placing order…" : `Place order · ${format(totals.total)}`}
         </button>
       </div>
     </form>
@@ -308,11 +307,11 @@ function Field({ label, error, full, children }: { label: string; error?: string
   );
 }
 
-function Row({ label, value }: { label: string; value: number }) {
+function Row({ label, value, format }: { label: string; value: number; format: (v: number) => string }) {
   return (
     <div className="flex justify-between text-fog-300">
       <span>{label}</span>
-      <span>{formatCurrency(value)}</span>
+      <span>{format(value)}</span>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useState, useCallback } from "react";
+import { formatCurrency } from "@/lib/utils";
 
 export interface CartVariant {
   name: string;
@@ -27,6 +28,10 @@ interface CartContextValue {
   items: CartItem[];
   count: number;
   subtotal: number;
+  /** ISO currency code for this restaurant (e.g. "GBP", "USD", "CAD"). */
+  currency: string;
+  /** Format a value in this restaurant's currency. */
+  format: (value: number) => string;
   add: (item: Omit<CartItem, "lineId">) => void;
   setQuantity: (lineId: string, quantity: number) => void;
   remove: (lineId: string) => void;
@@ -44,7 +49,15 @@ function lineIdFor(item: Omit<CartItem, "lineId">): string {
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
-export function CartProvider({ slug, children }: { slug: string; children: React.ReactNode }) {
+export function CartProvider({
+  slug,
+  currency = "GBP",
+  children,
+}: {
+  slug: string;
+  currency?: string;
+  children: React.ReactNode;
+}) {
   const storageKey = `restopanel:cart:${slug}`;
   const [items, setItems] = useState<CartItem[]>([]);
   const [ready, setReady] = useState(false);
@@ -98,11 +111,13 @@ export function CartProvider({ slug, children }: { slug: string; children: React
 
   const clear = useCallback(() => setItems([]), []);
 
+  const format = useCallback((v: number) => formatCurrency(v, currency), [currency]);
+
   const value = useMemo<CartContextValue>(() => {
     const count = items.reduce((s, i) => s + i.quantity, 0);
     const subtotal = round2(items.reduce((s, i) => s + i.unitPrice * i.quantity, 0));
-    return { items, count, subtotal, add, setQuantity, remove, clear, ready };
-  }, [items, add, setQuantity, remove, clear, ready]);
+    return { items, count, subtotal, currency, format, add, setQuantity, remove, clear, ready };
+  }, [items, currency, format, add, setQuantity, remove, clear, ready]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }

@@ -1,3 +1,4 @@
+import { createHash, randomBytes } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { actionError, actionOk, type ActionResult } from "@/lib/action-result";
@@ -112,6 +113,98 @@ export async function authenticateAccount(
 }
 
 // ---------------------------------------------------------------------------
+// Password reset
+// ---------------------------------------------------------------------------
+
+// Reset links are valid for one hour. Short enough to limit exposure, long
+// enough to survive a distracted user checking email.
+const RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
+
+/** Hash a raw reset token for storage/lookup (never store the raw token). */
+function hashResetToken(rawToken: string): string {
+  return createHash("sha256").update(rawToken).digest("hex");
+}
+
+/**
+ * Issue a single-use reset token for an account and return the raw token (to be
+ * emailed). Any previous unused tokens for the account are invalidated so only
+ * the latest link works. Exposed for the request flow and tests.
+ */
+export async function createPasswordResetToken(accountId: string): Promise<string> {
+  const rawToken = randomBytes(32).toString("hex");
+  await prisma.$transaction([
+    // Consume outstanding tokens so a customer can only have one live link.
+    prisma.customerPasswordReset.updateMany({
+      where: { accountId, usedAt: null },
+      data: { usedAt: new Date() },
+    }),
+    prisma.customerPasswordReset.create({
+      data: {
+        accountId,
+        tokenHash: hashResetToken(rawToken),
+        expiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MS),
+      },
+    }),
+  ]);
+  return rawToken;
+}
+
+export interface PasswordResetRequest {
+  accountId: string;
+  email: string;
+  name: string;
+  rawToken: string;
+}
+
+/**
+ * Look up an account by email and mint a reset token. Returns null when no
+ * account exists — callers MUST still report success to the user so the
+ * endpoint never reveals which emails are registered.
+ */
+export async function beginPasswordReset(
+  email: string
+): Promise<PasswordResetRequest | null> {
+  const account = await prisma.customerAccount.findUnique({
+    where: { email },
+    select: { id: true, email: true, name: true },
+  });
+  if (!account) return null;
+
+  const rawToken = await createPasswordResetToken(account.id);
+  return { accountId: account.id, email: account.email, name: account.name, rawToken };
+}
+
+/**
+ * Consume a reset token and set a new password. Bumps tokenVersion so every
+ * existing session is invalidated (a reset should log out other devices).
+ */
+export async function resetPassword(
+  rawToken: string,
+  newPassword: string
+): Promise<ActionResult> {
+  const record = await prisma.customerPasswordReset.findUnique({
+    where: { tokenHash: hashResetToken(rawToken) },
+    select: { id: true, accountId: true, usedAt: true, expiresAt: true },
+  });
+  if (!record || record.usedAt || record.expiresAt < new Date()) {
+    return actionError("This reset link is invalid or has expired. Request a new one.");
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, 10);
+  await prisma.$transaction([
+    prisma.customerPasswordReset.update({
+      where: { id: record.id },
+      data: { usedAt: new Date() },
+    }),
+    prisma.customerAccount.update({
+      where: { id: record.accountId },
+      data: { passwordHash, tokenVersion: { increment: 1 } },
+    }),
+  ]);
+  return actionOk();
+}
+
+// ---------------------------------------------------------------------------
 // Dashboard
 // ---------------------------------------------------------------------------
 
@@ -135,7 +228,7 @@ export async function getDashboardData(accountId: string) {
         total: true,
         type: true,
         createdAt: true,
-        restaurant: { select: { name: true, slug: true } },
+        restaurant: { select: { name: true, slug: true, currency: true } },
         _count: { select: { items: true } },
       },
     }),
@@ -202,7 +295,7 @@ export async function listOrders(accountId: string, query: OrderListQuery) {
         type: true,
         total: true,
         createdAt: true,
-        restaurant: { select: { name: true, slug: true } },
+        restaurant: { select: { name: true, slug: true, currency: true } },
         _count: { select: { items: true } },
       },
     }),
@@ -264,7 +357,7 @@ export async function getActiveOrders(accountId: string) {
       type: true,
       total: true,
       createdAt: true,
-      restaurant: { select: { name: true, slug: true } },
+      restaurant: { select: { name: true, slug: true, currency: true } },
     },
   });
 }
@@ -365,9 +458,19 @@ export async function getAccountSettings(accountId: string) {
       notifyOrderUpdates: true,
       notifyPromotions: true,
       notifyRestaurantMsgs: true,
+      emailVerifiedAt: true,
       createdAt: true,
     },
   });
+}
+
+/** Whether the account's email has been verified (for the panel banner/gate). */
+export async function isEmailVerified(accountId: string): Promise<boolean> {
+  const row = await prisma.customerAccount.findUnique({
+    where: { id: accountId },
+    select: { emailVerifiedAt: true },
+  });
+  return !!row?.emailVerifiedAt;
 }
 
 /** Bump tokenVersion — invalidates every issued session ("sign out everywhere"). */
@@ -536,7 +639,7 @@ export async function listFavorites(accountId: string) {
           isAvailable: true,
           status: true,
           deletedAt: true,
-          restaurant: { select: { name: true, slug: true, currencySymbol: true } },
+          restaurant: { select: { name: true, slug: true, currency: true, currencySymbol: true } },
         },
       },
     },

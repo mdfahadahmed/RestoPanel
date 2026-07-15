@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { AnimatePresence, motion } from "framer-motion";
 import { toast } from "sonner";
 import { Check, ArrowUpCircle, ArrowDownCircle, Sparkles } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -124,22 +125,40 @@ export function PlanManager({
   return (
     <div className="space-y-5">
       {/* Cycle toggle */}
-      <div className="flex items-center justify-center">
-        <div className="inline-flex items-center gap-1 rounded-xl border border-line bg-ink-900/40 p-1">
-          {(["MONTHLY", "YEARLY"] as const).map((c) => (
-            <button
-              key={c}
-              onClick={() => setCycle(c)}
-              className={cn(
-                "rounded-lg px-4 py-1.5 text-sm font-medium transition",
-                cycle === c ? "bg-ink-800 text-fog-100" : "text-fog-400 hover:text-fog-200"
-              )}
-            >
-              {c === "MONTHLY" ? "Monthly" : "Yearly"}
-              {c === "YEARLY" && <span className="ml-1.5 text-xs text-emerald-300">save ~17%</span>}
-            </button>
-          ))}
+      <div className="flex flex-col items-center justify-center gap-2 sm:flex-row sm:gap-3">
+        <div
+          role="radiogroup"
+          aria-label="Billing cycle"
+          className="inline-flex items-center gap-1 rounded-xl border border-line bg-ink-900/40 p-1"
+        >
+          {(["MONTHLY", "YEARLY"] as const).map((c) => {
+            const active = cycle === c;
+            return (
+              <button
+                key={c}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                onClick={() => setCycle(c)}
+                className="relative rounded-lg px-4 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/40"
+              >
+                {active && (
+                  <motion.span
+                    layoutId="billing-cycle-pill"
+                    className="absolute inset-0 rounded-lg bg-ink-800 shadow-soft"
+                    transition={{ type: "spring", stiffness: 400, damping: 32 }}
+                  />
+                )}
+                <span className={cn("relative z-10", active ? "text-fog-100" : "text-fog-400 hover:text-fog-200")}>
+                  {c === "MONTHLY" ? "Monthly" : "Yearly"}
+                </span>
+              </button>
+            );
+          })}
         </div>
+        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-300">
+          <Sparkles className="h-3 w-3" /> Save ~17% yearly
+        </span>
       </div>
 
       {/* Plan grid */}
@@ -147,6 +166,7 @@ export function PlanManager({
         {plans.map((plan) => {
           const price = cycle === "YEARLY" ? plan.priceYearly : plan.priceMonthly;
           const isCurrent = current?.slug === plan.slug;
+          const isRecommended = plan.slug === "pro";
           const relation =
             !current || current.status === "CANCELED" || current.status === "EXPIRED"
               ? "choose"
@@ -160,29 +180,45 @@ export function PlanManager({
             <Card
               key={plan.slug}
               className={cn(
-                "relative flex flex-col",
-                isCurrent && "border-violet-500/40 shadow-glow"
+                "relative flex flex-col transition duration-200 hover:-translate-y-1 hover:shadow-glow",
+                (isCurrent || isRecommended) && "border-violet-500/50 shadow-glow"
               )}
             >
+              {isRecommended && !isCurrent && (
+                <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-gradient-to-r from-violet-500 to-gold-400 px-3 py-0.5 text-[11px] font-semibold text-ink-950 shadow-glow">
+                  Recommended
+                </span>
+              )}
               {isCurrent && (
                 <span className="absolute right-3 top-3">
-                  <Badge variant="violet">Current</Badge>
+                  <Badge variant="violet">Current plan</Badge>
                 </span>
               )}
               <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2">{plan.name}</CardTitle>
-                <div className="mt-1 text-2xl font-semibold tracking-tight">
-                  {money(price, plan.currency)}
+                <CardTitle className="flex items-center gap-2 text-base">{plan.name}</CardTitle>
+                <div className="mt-1 flex items-baseline gap-1 text-3xl font-semibold tracking-tight">
+                  <AnimatePresence mode="wait" initial={false}>
+                    <motion.span
+                      key={`${plan.slug}-${cycle}`}
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -6 }}
+                      transition={{ duration: 0.18 }}
+                      className="inline-block"
+                    >
+                      {money(price, plan.currency)}
+                    </motion.span>
+                  </AnimatePresence>
                   {price > 0 && (
                     <span className="text-sm font-normal text-fog-500">
                       /{cycle === "YEARLY" ? "yr" : "mo"}
                     </span>
                   )}
                 </div>
-                {plan.description && <p className="text-xs text-fog-500">{plan.description}</p>}
+                {plan.description && <p className="mt-1 text-xs text-fog-500">{plan.description}</p>}
               </CardHeader>
               <CardContent className="flex flex-1 flex-col gap-4">
-                <ul className="flex-1 space-y-1.5 text-sm text-fog-300">
+                <ul className="flex-1 space-y-2 text-sm text-fog-300">
                   {plan.features.map((f, i) => (
                     <li key={i} className="flex items-start gap-2">
                       <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-400" />

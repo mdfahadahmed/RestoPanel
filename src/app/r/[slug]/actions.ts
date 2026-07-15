@@ -1,5 +1,6 @@
 "use server";
 
+import { headers } from "next/headers";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { actionError, actionOk, type ActionResult } from "@/lib/action-result";
@@ -13,10 +14,43 @@ import { createReservation, getDayAvailability } from "@/lib/reservations/bookin
 import { getCustomerSession } from "@/lib/account/context";
 import { notifyAccountOrderPlaced } from "@/lib/account/notify";
 import { settlePaymentByIntent } from "@/lib/payments/service";
+import { checkRateLimit } from "@/lib/security/ratelimit";
+import { getClientIp } from "@/lib/security/ip";
+import { isTrustedOrigin } from "@/lib/security/origin";
 
 // Thrown inside the order transaction to roll back when a coupon's usage limit
 // was exhausted concurrently between validation and the guarded increment.
 class CouponLimitReachedError extends Error {}
+
+/**
+ * Abuse protection for the public (unauthenticated) storefront actions: reject
+ * cross-origin POSTs (CSRF) and throttle by client IP. Reused across order,
+ * coupon, reservation and review submission.
+ *
+ * Fails open when there's no request context (e.g. the test harness calls these
+ * actions directly, where `headers()` throws) — production always has one.
+ */
+async function publicGuard(
+  buckets: { key: string; limit: number }[]
+): Promise<ActionResult<never> | null> {
+  let h: Awaited<ReturnType<typeof headers>>;
+  try {
+    h = await headers();
+  } catch {
+    return null; // no request context (tests/CI) → skip guarding
+  }
+  if (!isTrustedOrigin(h)) {
+    return actionError("Your request could not be verified. Please refresh and try again.");
+  }
+  const ip = getClientIp(h) ?? "?";
+  for (const b of buckets) {
+    const res = await checkRateLimit(`${b.key}:${ip}`, b.limit);
+    if (!res.allowed) {
+      return actionError("Too many requests. Please slow down and try again in a minute.");
+    }
+  }
+  return null;
+}
 
 // Public checkout — NO session. The restaurant is resolved from the public slug
 // and every write is scoped to that restaurantId. Pricing/tax/delivery are taken
@@ -25,6 +59,12 @@ export async function placeOrderPublic(
   slug: string,
   input: unknown
 ): Promise<ActionResult<{ orderNumber: string; orderId: string; online: boolean }>> {
+  const blocked = await publicGuard([
+    { key: `store:order:ip`, limit: 12 },
+    { key: `store:order:slug:${slug}`, limit: 40 },
+  ]);
+  if (blocked) return blocked;
+
   const restaurant = await prisma.restaurant.findUnique({
     where: { slug },
     select: {
@@ -240,6 +280,10 @@ export async function validateCouponPublic(
   code: string,
   subtotal: number
 ): Promise<ActionResult<{ code: string; discount: number }>> {
+  // Tighter per-IP limit: this is the surface a bot would use to brute-force codes.
+  const blocked = await publicGuard([{ key: `store:coupon:ip`, limit: 15 }]);
+  if (blocked) return blocked;
+
   const restaurant = await prisma.restaurant.findUnique({ where: { slug }, select: { id: true } });
   if (!restaurant) return actionError("Restaurant not found");
   const safeSubtotal = Math.max(0, Number(subtotal) || 0);
@@ -266,6 +310,9 @@ export async function createReservationPublic(
   slug: string,
   input: unknown
 ): Promise<ActionResult<{ reference: string }>> {
+  const blocked = await publicGuard([{ key: `store:reservation:ip`, limit: 8 }]);
+  if (blocked) return blocked;
+
   const restaurant = await prisma.restaurant.findUnique({ where: { slug }, select: { id: true } });
   if (!restaurant) return actionError("Restaurant not found");
 
@@ -298,6 +345,9 @@ export async function createReservationPublic(
 
 // Public review submission, tied to a delivered order (one review per order).
 export async function createReviewPublic(slug: string, input: unknown): Promise<ActionResult> {
+  const blocked = await publicGuard([{ key: `store:review:ip`, limit: 8 }]);
+  if (blocked) return blocked;
+
   const restaurant = await prisma.restaurant.findUnique({ where: { slug }, select: { id: true } });
   if (!restaurant) return actionError("Restaurant not found");
 

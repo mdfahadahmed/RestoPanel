@@ -18,6 +18,7 @@ import {
   CreditCard,
   Code2,
   ShieldCheck,
+  LifeBuoy,
   Settings,
   type LucideIcon,
 } from "lucide-react";
@@ -80,6 +81,7 @@ export const DASHBOARD_SECTIONS: NavSection[] = [
       { label: "API", href: "/dashboard/api", icon: Code2 },
       { label: "Security", href: "/dashboard/security", icon: ShieldCheck },
       { label: "Billing", href: "/dashboard/billing", icon: CreditCard },
+      { label: "Support", href: "/dashboard/support", icon: LifeBuoy },
       { label: "Settings", href: "/dashboard/settings", icon: Settings },
     ],
   },

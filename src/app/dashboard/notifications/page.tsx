@@ -1,5 +1,6 @@
 import { Bell, Mail, MessageSquare, CheckCircle2, XCircle, MinusCircle } from "lucide-react";
 import type { NotificationChannel, NotificationStatus } from "@prisma/client";
+import { GsapReveal } from "@/components/dashboard/GsapReveal";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { ParamTabs } from "@/components/admin/ParamTabs";
@@ -83,13 +84,13 @@ export default async function NotificationsPage({
   const { rows, total, pageCount, perPage } = logsResult;
 
   return (
-    <>
+    <GsapReveal className="space-y-6">
       <PageHeader
         title="Notification Center"
         description="Order, reservation and welcome messages over email (Resend) and SMS (Twilio)."
       />
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Sent" value={formatNumber(stats.SENT)} icon={CheckCircle2} accent="text-emerald-300" />
         <StatCard label="Skipped" value={formatNumber(stats.SKIPPED)} icon={MinusCircle} />
         <StatCard label="Failed" value={formatNumber(stats.FAILED)} icon={XCircle} accent="text-rose-300" />
@@ -104,7 +105,7 @@ export default async function NotificationsPage({
         </TabsList>
 
         {/* Activity log */}
-        <TabsContent value="activity" className="space-y-3">
+        <TabsContent value="activity" className="mt-3 space-y-3">
           <div className="flex flex-wrap items-center gap-2">
             <ParamTabs paramKey="status" options={STATUS_OPTIONS} />
             <ParamTabs paramKey="channel" options={CHANNEL_OPTIONS} />
@@ -115,6 +116,7 @@ export default async function NotificationsPage({
               icon={Bell}
               title="No notifications yet"
               description="Sent messages will appear here. Update an order's status or take a reservation to see one."
+              className="min-h-[400px] py-10"
             />
           ) : (
             <Card className="overflow-hidden">
@@ -156,7 +158,7 @@ export default async function NotificationsPage({
 
         {/* Providers */}
         <TabsContent value="providers" className="space-y-4">
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2">
             <Card>
               <CardHeader className="flex-row items-center justify-between">
                 <CardTitle className="flex items-center gap-2"><Mail className="h-4 w-4 text-fog-400" /> Email — Resend</CardTitle>
@@ -180,6 +182,6 @@ export default async function NotificationsPage({
           <SendTestForm emailReady={Boolean(emailCfg)} smsReady={Boolean(smsCfg)} />
         </TabsContent>
       </Tabs>
-    </>
+    </GsapReveal>
   );
 }

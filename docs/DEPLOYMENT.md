@@ -32,6 +32,9 @@ database — schema sync is a separate step (§2).
    ```
    `sslmode=require` gives you DB-level SSL out of the box.
 3. Keep the **direct** (non-pooled) string too — handy for the one-off schema push.
+   `prisma/schema.prisma` exposes it as `directUrl = env("DIRECT_URL")`. It is only
+   read by `prisma migrate` / `prisma db push`; `prisma generate` and the running
+   app do not need it, so `DIRECT_URL` does **not** have to be set in Vercel.
 
 ## 2. Sync the schema to Neon  ⚠️ important
 
@@ -120,7 +123,21 @@ vercel --prod            # build + deploy
 Or connect the Git repo in the Vercel dashboard for push-to-deploy. Vercel
 auto-detects Next.js; the build command (`prisma generate && next build`) comes from
 `package.json`. `vercel.json` already configures the `lhr1` region, security headers,
-and the two cron jobs (daily DB backup 03:00, hourly subscription renewals).
+and the two cron jobs (DB backup 03:00 UTC, subscription renewals 04:00 UTC).
+
+> **Cron schedules are plan-limited.** Hobby accounts only allow schedules that run
+> **once per day** — anything more frequent (`0 * * * *`, `*/30 * * * *`) makes the
+> **deployment fail** with *"Hobby accounts are limited to daily cron jobs."* Both
+> schedules above are daily so they deploy on any plan. On **Pro** you may set
+> `/api/cron/renewals` back to hourly (`0 * * * *`) for tighter billing latency —
+> `processRenewals()` is idempotent and catches up whatever is due, so the daily
+> schedule loses timeliness only, never data.
+
+**Production Branch.** Vercel only creates a *Production* deployment when its
+configured Production Branch receives a push (default: `main`). Pushing to any other
+branch yields a *Preview* deployment, and the dashboard keeps showing
+"No Production Deployment". Verify under **Settings → Git → Production Branch**, then
+merge your feature branch into it and push.
 
 ## 8. SSL / TLS
 

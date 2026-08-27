@@ -12,6 +12,22 @@ import type { FaqEntry } from "@/components/landing/FaqAccordion";
 
 const REVALIDATE_SECONDS = 300;
 
+/**
+ * Run a CMS query, falling back to curated content when the database cannot be
+ * reached. The public marketing pages (`/`, `/blog`, `/help`) are prerendered at
+ * build time, so an unreachable DB used to abort the entire production build
+ * ("Export encountered an error on /blog/page") rather than degrade. Mirrors the
+ * `.catch(() => [])` guard already used in `app/sitemap.ts`.
+ */
+async function withFallback<T>(query: () => Promise<T>, fallback: T, label: string): Promise<T> {
+  try {
+    return await query();
+  } catch (e) {
+    console.warn(`[marketing] ${label} unavailable, serving fallback content:`, e instanceof Error ? e.message : e);
+    return fallback;
+  }
+}
+
 const DEFAULT_FAQS: FaqEntry[] = [
   {
     q: "How quickly can I get my restaurant online?",
@@ -42,11 +58,16 @@ const DEFAULT_FAQS: FaqEntry[] = [
 /** Published FAQs for the landing section, newest curated defaults as fallback. */
 export const getLandingFaqs = unstable_cache(
   async (): Promise<FaqEntry[]> => {
-    const rows = await prisma.faqItem.findMany({
-      where: { isPublished: true },
-      orderBy: [{ position: "asc" }, { createdAt: "asc" }],
-      select: { question: true, answer: true },
-    });
+    const rows = await withFallback(
+      () =>
+        prisma.faqItem.findMany({
+          where: { isPublished: true },
+          orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+          select: { question: true, answer: true },
+        }),
+      [],
+      "landing FAQs"
+    );
     if (rows.length === 0) return DEFAULT_FAQS;
     return rows.map((r) => ({ q: r.question, a: r.answer }));
   },
@@ -89,14 +110,19 @@ const DEFAULT_PLANS: PublicPlan[] = [
 /** Active plan catalogue for the marketing pricing section (falls back to curated). */
 export const getPublicPlans = unstable_cache(
   async (): Promise<PublicPlan[]> => {
-    const rows = await prisma.plan.findMany({
-      where: { isActive: true },
-      orderBy: { position: "asc" },
-      select: {
-        slug: true, name: true, description: true, priceMonthly: true, priceYearly: true,
-        currency: true, features: true, isFeatured: true, trialDays: true,
-      },
-    });
+    const rows = await withFallback(
+      () =>
+        prisma.plan.findMany({
+          where: { isActive: true },
+          orderBy: { position: "asc" },
+          select: {
+            slug: true, name: true, description: true, priceMonthly: true, priceYearly: true,
+            currency: true, features: true, isFeatured: true, trialDays: true,
+          },
+        }),
+      [],
+      "public plans"
+    );
     if (rows.length === 0) return DEFAULT_PLANS;
     return rows.map((p) => {
       const monthly = Number(p.priceMonthly);
@@ -128,11 +154,16 @@ export interface FaqGroup {
 /** Published FAQs grouped by category for the Help Center. */
 export const getHelpFaqGroups = unstable_cache(
   async (): Promise<FaqGroup[]> => {
-    const rows = await prisma.faqItem.findMany({
-      where: { isPublished: true },
-      orderBy: [{ category: "asc" }, { position: "asc" }, { createdAt: "asc" }],
-      select: { category: true, question: true, answer: true },
-    });
+    const rows = await withFallback(
+      () =>
+        prisma.faqItem.findMany({
+          where: { isPublished: true },
+          orderBy: [{ category: "asc" }, { position: "asc" }, { createdAt: "asc" }],
+          select: { category: true, question: true, answer: true },
+        }),
+      [],
+      "help FAQs"
+    );
     const source = rows.length > 0
       ? rows.map((r) => ({ category: r.category, q: r.question, a: r.answer }))
       : DEFAULT_FAQS.map((f) => ({ category: "General", ...f }));
@@ -152,19 +183,24 @@ export const getHelpFaqGroups = unstable_cache(
 /** Published blog posts (list view), newest first. */
 export const getPublishedPosts = unstable_cache(
   async () => {
-    return prisma.blogPost.findMany({
-      where: { status: "PUBLISHED" },
-      orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
-      select: {
-        slug: true,
-        title: true,
-        excerpt: true,
-        coverUrl: true,
-        author: true,
-        publishedAt: true,
-        createdAt: true,
-      },
-    });
+    return withFallback(
+      () =>
+        prisma.blogPost.findMany({
+          where: { status: "PUBLISHED" },
+          orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
+          select: {
+            slug: true,
+            title: true,
+            excerpt: true,
+            coverUrl: true,
+            author: true,
+            publishedAt: true,
+            createdAt: true,
+          },
+        }),
+      [],
+      "blog posts"
+    );
   },
   ["published-posts"],
   { revalidate: REVALIDATE_SECONDS, tags: ["marketing"] }
@@ -173,9 +209,14 @@ export const getPublishedPosts = unstable_cache(
 /** A single published post by slug (or null). */
 export const getPublishedPost = unstable_cache(
   async (slug: string) => {
-    return prisma.blogPost.findFirst({
-      where: { slug, status: "PUBLISHED" },
-    });
+    return withFallback(
+      () =>
+        prisma.blogPost.findFirst({
+          where: { slug, status: "PUBLISHED" },
+        }),
+      null,
+      `blog post "${slug}"`
+    );
   },
   ["published-post"],
   { revalidate: REVALIDATE_SECONDS, tags: ["marketing"] }

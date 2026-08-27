@@ -30,3 +30,6 @@ next-env.d.ts
 *.log
 .vscode/*
 !.vscode/extensions.json
+
+# vercel CLI project link (contains project/org ids)
+.vercel
